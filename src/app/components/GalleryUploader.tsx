@@ -1,8 +1,9 @@
 "use client";
 
-import Papa from "papaparse";
 import { useState } from "react";
 import GalleryCard from "./GalleryCard";
+import { parse, type ParseResult } from "papaparse"
+
 
 
 type GalleryItem = {
@@ -19,17 +20,17 @@ export default function GalleryUploader() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    Papa.parse(file, {
+    parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (result) => {
-        const data = result.data as GalleryItem[];
-        setItems(data.filter((item) => item.title || item.url));
+      complete: (result: ParseResult<GalleryItem>) => {
+        const data = result.data;
+        setItems(data.filter((item) => item.title || item.image || item.url));
       },
     });
+    
   };
-  console.log(items)
+  
   return (
     <div>
       <input
