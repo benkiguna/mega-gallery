@@ -3,6 +3,7 @@
 import { useState } from "react";
 import GalleryCard from "./GalleryCard";
 import { parse, type ParseResult } from "papaparse"
+import AnimatedCard from "./AnimatedCard";
 
 
 
@@ -30,7 +31,7 @@ export default function GalleryUploader() {
     });
     
   };
-  
+
   return (
     <div>
       <input
@@ -40,13 +41,14 @@ export default function GalleryUploader() {
         className="mb-4 block w-full"
       />
      <div className="grid grid-cols-2 gap-4 px-2">
-  {items.map((item, index) => (
-    <GalleryCard
-      key={index}
-      title={item.title}
-      imageUrl={item.image}
-      link={item.url}
-    />
+        {items.map((item, index) => (
+          <AnimatedCard key={index} delay={.2}><GalleryCard
+     key={index}
+     title={item.title}
+     imageUrl={item.image}
+     link={item.url}
+   /></AnimatedCard>
+    
   ))}
 </div>
 
