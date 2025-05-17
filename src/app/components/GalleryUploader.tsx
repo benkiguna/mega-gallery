@@ -42,7 +42,7 @@ export default function GalleryUploader() {
       />
      <div className="grid grid-cols-2 gap-4 px-2">
         {items.map((item, index) => (
-          <AnimatedCard key={index} delay={.2}><GalleryCard
+          <AnimatedCard key={index} delay={(index%2)*.2}><GalleryCard
      key={index}
      title={item.title}
      imageUrl={item.image}
