@@ -16,11 +16,12 @@ export default function AnimatedCard({
 
   return (
     <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay }}
-      className="bg-white rounded shadow p-4"
+          ref={ref}
+          initial={{ opacity: 0, y: 30 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, delay }}
+          className="bg-white rounded shadow p-4 m-4"
+          style={{ margin: "1rem" }}
     >
       {children}
     </motion.div>

@@ -7,11 +7,12 @@ type GalleryCardProps = {
 
 export default function GalleryCard({ title, imageUrl, link }: GalleryCardProps) {
   return (
+    <div>
     <a
       href={link}
       target="_blank"
       rel="noopener noreferrer"
-      className="block group no-underline text-inherit "
+      className="block group no-underline text-inherit"
     >
       <div className="aspect-square w-full bg-white rounded-xl shadow hover:shadow-md transition overflow-hidden border border-transparent">
         {imageUrl ? (
@@ -26,6 +27,7 @@ export default function GalleryCard({ title, imageUrl, link }: GalleryCardProps)
           </div>
         )}
       </div>
-    </a>
+      </a>
+  </div>
   );
 }
