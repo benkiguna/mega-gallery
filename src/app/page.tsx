@@ -1,9 +1,12 @@
 import GalleryUploader from "./components/GalleryUploader";
+import PasswordGate from "./components/PasswordGate";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-white px-2 py-4">
-      <GalleryUploader />
+      <PasswordGate>
+        <GalleryUploader />
+      </PasswordGate>
     </main>
   );
 }
