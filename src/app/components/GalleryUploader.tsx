@@ -4,7 +4,8 @@ import { useState } from "react";
 import GalleryCard from "./GalleryCard";
 import { parse, type ParseResult } from "papaparse";
 import AnimatedCard from "./AnimatedCard";
-import { decryptText } from "../get-base64/page"; // adjust path if needed
+import { decryptText } from "@/lib/crypto-utils";
+
 
 type GalleryItem = {
   title: string;
@@ -52,11 +53,6 @@ export default function GalleryUploader() {
         } finally {
           setLoading(false);
         }
-      },
-      error: (err) => {
-        console.error("Parse error:", err);
-        setError("Failed to parse the CSV file.");
-        setLoading(false);
       },
     });
   };
