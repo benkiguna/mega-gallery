@@ -114,7 +114,7 @@ export default function GetBase64Page() {
     <main className="min-h-screen bg-muted px-4 py-10 flex flex-col items-center">
       <Card className="w-full max-w-xl p-4">
         <CardHeader>
-          <CardTitle className="text-center text-2xl">Encrypt Image or Text</CardTitle>
+          <CardTitle className="text-center text-2xl m-12">Encrypt Image or Text</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="text" className="space-y-6">
