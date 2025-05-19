@@ -7,10 +7,17 @@ import AnimatedCard from "./AnimatedCard";
 import { decryptText } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 
+type RawCSVRow = Record<string, string | undefined>;
+
+type LinkItem = {
+  url: string;
+  password?: string;
+};
+
 type GalleryItem = {
   title: string;
   image?: string;
-  url: string;
+  links: LinkItem[];
 };
 
 function looksEncrypted(str: string | undefined): boolean {
@@ -33,21 +40,37 @@ export default function GalleryUploader() {
       parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: async (result: ParseResult<GalleryItem>) => {
+        complete: async (result: ParseResult<RawCSVRow>) => {
           try {
             const rows = result.data;
 
-            const decryptedRows = await Promise.all(
-              rows.map(async (item) => {
-                const title = looksEncrypted(item.title) ? await safeDecrypt(item.title) : item.title;
-                const image = looksEncrypted(item.image) ? await safeDecrypt(item.image) : item.image;
-                const url = looksEncrypted(item.url) ? await safeDecrypt(item.url) : item.url;
-
-                return { title, image, url };
+            const decryptedRows: GalleryItem[] = await Promise.all(
+              rows.map(async (row) => {
+                const title = looksEncrypted(row.title) ? await safeDecrypt(row.title) : row.title ?? "";
+                const image = looksEncrypted(row.image) ? await safeDecrypt(row.image) : row.image;
+             
+                const links: LinkItem[] = [];
+                for (const [key, value] of Object.entries(row)) {
+                  if (key.startsWith("url") && value) {
+                    const index = key === "url" ? "" : key.slice(3);
+                    const passwordKey = `password${index}`;
+                
+                    const decryptedUrl = looksEncrypted(value) ? await safeDecrypt(value) : value;
+                    const passwordVal = row[passwordKey];
+                    const decryptedPassword = looksEncrypted(passwordVal) ? await safeDecrypt(passwordVal) : passwordVal;
+                
+                    links.push({
+                      url: decryptedUrl,
+                      password: decryptedPassword || undefined,
+                    });
+                  }
+                }
+                
+                return { title, image, links };
               })
             );
 
-            setItems(decryptedRows.filter((item) => item.title || item.image || item.url));
+            setItems(decryptedRows.filter((item) => item.title || item.image || item.links.length));
           } catch (err) {
             console.error("Error while parsing or decrypting:", err);
             setError("Something went wrong while processing the file.");
@@ -71,6 +94,7 @@ export default function GalleryUploader() {
     }
   }
 
+  console.log(items);
   return (
     <div className="w-full px-4 py-6 flex flex-col items-center">
       <div className="w-full max-w-md">
@@ -78,7 +102,7 @@ export default function GalleryUploader() {
           type="file"
           accept=".csv"
           onChange={handleFileUpload}
-          className="mb-6 text-base px-6 py-4 rounded-xl shadow border border-input bg-background text-muted-foreground"
+          className="mb-6 text-base rounded shadow border border-input bg-background text-muted-foreground"
         />
       </div>
 
@@ -91,17 +115,20 @@ export default function GalleryUploader() {
       )}
 
       {!loading && !error && (
-        <div className="grid grid-cols-2 gap-6 px-2 mt-6">
-          {items.map((item, index) => (
-            <AnimatedCard key={index} delay={(index % 2) * 0.1}>
-              <GalleryCard
-                title={item.title}
-                imageUrl={item.image}
-                link={item.url}
-              />
-            </AnimatedCard>
-          ))}
-        </div>
+       <div className="grid grid-cols-2 gap-4 w-full max-w-4xl px-2 mt-6">
+       {items.map((item, index) => (
+         <div key={index} className="w-full">
+           <AnimatedCard delay={(index % 2) * 0.1}>
+             <GalleryCard
+               title={item.title}
+               imageUrl={item.image}
+               links={item.links}
+             />
+           </AnimatedCard>
+         </div>
+       ))}
+     </div>
+     
       )}
     </div>
   );

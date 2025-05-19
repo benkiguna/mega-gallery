@@ -20,8 +20,7 @@ export default function AnimatedCard({
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay }}
-          className="bg-white rounded shadow p-4 m-4"
-          style={{ margin: "1rem" }}
+          className="bg-white rounded shadow"
     >
       {children}
     </motion.div>

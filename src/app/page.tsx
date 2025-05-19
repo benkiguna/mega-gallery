@@ -1,5 +1,6 @@
 import GalleryUploader from "./components/GalleryUploader";
 import PasswordGate from "./components/PasswordGate";
+import "../app/globals.css"
 
 export default function Home() {
   return (
@@ -10,3 +11,5 @@ export default function Home() {
     </main>
   );
 }
+
+
