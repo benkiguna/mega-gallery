@@ -27,17 +27,27 @@ async function getKey() {
 }
 
 export async function encryptText(plainText: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await getKey();
-  const encoded = encoder.encode(plainText);
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    encoded
-  );
-  const fullBuffer = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
-  return btoa(String.fromCharCode(...fullBuffer));
-}
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await getKey();
+    const encoded = new TextEncoder().encode(plainText);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      encoded
+    );
+  
+    const fullBuffer = new Uint8Array(iv.length + encrypted.byteLength);
+    fullBuffer.set(iv, 0);
+    fullBuffer.set(new Uint8Array(encrypted), iv.length);
+  
+    // Safely encode to base64
+    const base64String = btoa(
+      fullBuffer.reduce((data, byte) => data + String.fromCharCode(byte), "")
+    );
+  
+    return base64String;
+  }
+  
 
 export async function decryptText(encryptedText: string): Promise<string> {
   const data = Uint8Array.from(atob(encryptedText), c => c.charCodeAt(0));

@@ -19,11 +19,6 @@ import {
 import { encryptText } from "@/lib/crypto-utils";
 
 
-const encoder = new TextEncoder();
-const SECRET_KEY = 'gallery-secret';
-
-
-
   
 
 export default function GetBase64Page() {
