@@ -55,9 +55,10 @@ export default function GalleryCard({
     >
       {showDevTitle && index !== undefined && (
         <div className="text-sm text-gray-400 text-center mb-2">
-          Card {index + 1}
+          {index + 1}
         </div>
       )}
+
       <motion.div
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ duration: 0.6 }}
@@ -143,6 +144,9 @@ export default function GalleryCard({
           )}
         </div>
       </motion.div>
+      <div className="text-sm text-gray-400 text-center mt-3 capitalize">
+        {title}
+      </div>
     </div>
   );
 }

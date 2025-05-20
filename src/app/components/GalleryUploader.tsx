@@ -24,7 +24,7 @@ type GalleryItem = {
 };
 
 function looksEncrypted(str: string | undefined): boolean {
-  return typeof str === "string" && str.length > 50 && !str.includes(" ");
+  return typeof str === "string" && str.length > 20 && !str.includes(" ");
 }
 
 export default function GalleryUploader() {
@@ -39,6 +39,9 @@ export default function GalleryUploader() {
   const [totalRows, setTotalRows] = useState(0);
   const [view, setView] = useState<"grid" | "list">("grid");
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredItems, setFilteredItems] = useState<GalleryItem[]>([]);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "t") {
@@ -49,6 +52,13 @@ export default function GalleryUploader() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
+
+  useEffect(() => {
+    const q = searchQuery.toLowerCase();
+    setFilteredItems(
+      items.filter((item) => item.title?.toLowerCase().includes(q))
+    );
+  }, [searchQuery, items]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,6 +120,11 @@ export default function GalleryUploader() {
                 (item) => item.title || item.image || item.links.length
               )
             );
+            setFilteredItems(
+              decryptedRows.filter(
+                (item) => item.title || item.image || item.links.length
+              )
+            );
           } catch (err) {
             console.error("Error while parsing or decrypting:", err);
             setError("Something went wrong while processing the file.");
@@ -158,21 +173,30 @@ export default function GalleryUploader() {
         </div>
       )}
 
-      <div className="mb-4 flex gap-2 items-center justify-end w-full max-w-4xl">
-        <Button
-          variant={view === "grid" ? "outline" : "default"}
-          size="sm"
-          onClick={() => setView("grid")}
-        >
-          Grid
-        </Button>
-        <Button
-          variant={view === "list" ? "outline" : "default"}
-          size="sm"
-          onClick={() => setView("list")}
-        >
-          List
-        </Button>
+      <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 px-2">
+        <Input
+          type="text"
+          placeholder="Search by title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full sm:w-[300px]"
+        />
+        <div className="mb-4 flex gap-2 items-center justify-end w-full max-w-4xl">
+          <Button
+            variant={view === "grid" ? "outline" : "default"}
+            size="sm"
+            onClick={() => setView("grid")}
+          >
+            Grid
+          </Button>
+          <Button
+            variant={view === "list" ? "outline" : "default"}
+            size="sm"
+            onClick={() => setView("list")}
+          >
+            List
+          </Button>
+        </div>
       </div>
 
       {error && <div className="text-red-600 text-center py-4">{error}</div>}
@@ -183,7 +207,7 @@ export default function GalleryUploader() {
             view === "grid" ? "grid-cols-2" : "grid-cols-1"
           }`}
         >
-          {items.map((item, index) => (
+          {filteredItems.map((item, index) => (
             <div key={index} className="w-full">
               <AnimatedCard delay={(index % 2) * 0.1}>
                 <GalleryCard
