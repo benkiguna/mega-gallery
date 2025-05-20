@@ -50,7 +50,7 @@ export default function GalleryCard({
 
   return (
     <div
-      className="relative w-full aspect-square p-4"
+      className="relative w-full aspect-square p-4 dark:bg-[#1e1e1f]"
       style={{ perspective: 1000 }}
     >
       {showDevTitle && index !== undefined && (

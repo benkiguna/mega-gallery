@@ -149,13 +149,13 @@ export default function GalleryUploader() {
   }
 
   return (
-    <div className="w-full px-4 py-6 flex flex-col items-center">
+    <div className="w-full px-4 py-6 flex flex-col items-center bg-white dark:bg-black">
       <div className="w-full max-w-md">
         <Input
           type="file"
           accept=".csv"
           onChange={handleFileUpload}
-          className="mb-6 text-base rounded shadow border border-input bg-background text-muted-foreground"
+          className="mb-6 w-full text-base rounded bg-white shadow border border-input dark:bg-black text-black dark:text-white border dark:border-gray-700"
         />
       </div>
 
@@ -173,15 +173,15 @@ export default function GalleryUploader() {
         </div>
       )}
 
-      <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 px-2">
+      <div className="sticky top-14 z-10 bg-white dark:bg-black border-b dark:border-gray-700 w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 py-4 px-2 transition-colors">
         <Input
           type="text"
           placeholder="Search by title..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full sm:w-[300px]"
+          className="w-full"
         />
-        <div className="mb-4 flex gap-2 items-center justify-end w-full max-w-4xl">
+        <div className="flex gap-2 items-center justify-end max-w-4xl">
           <Button
             variant={view === "grid" ? "outline" : "default"}
             size="sm"
