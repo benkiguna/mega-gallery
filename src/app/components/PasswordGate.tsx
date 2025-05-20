@@ -7,7 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const PASSWORD = "megabluff";
 
-export default function PasswordGate({ children }: { children: React.ReactNode }) {
+export default function PasswordGate({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState("");
@@ -28,15 +32,19 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       <Card className="w-full max-w-sm shadow-xl">
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <h1 className="text-xl font-semibold text-center">Enter Password</h1>
+            <h1 className="text-xl font-semibold text-center">
+              Enter Password
+            </h1>
             <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="px-4 py-3 mb-4"
-                />
-            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="px-4 py-3 mb-4"
+            />
+            {error && (
+              <p className="text-sm text-red-500 text-center">{error}</p>
+            )}
             <Button type="submit" className="w-full">
               Submit
             </Button>

@@ -1,12 +1,12 @@
 .card {
-    transform-style: preserve-3d;
-    perspective: 1000px;
-  }
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
 
-  .face {
-    backface-visibility: hidden;
-  }
-  
-  .back {
-    transform: rotateY(180deg);
-  }
+.face {
+  backface-visibility: hidden;
+}
+
+.back {
+  transform: rotateY(180deg);
+}
