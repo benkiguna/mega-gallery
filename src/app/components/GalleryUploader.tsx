@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import GalleryCard from "./GalleryCard";
 import { parse, type ParseResult } from "papaparse";
 import AnimatedCard from "./AnimatedCard";
 import { decryptText } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
+import { Button } from "@guna/components/ui/button";
 
 type RawCSVRow = Record<string, string | undefined>;
 
@@ -18,6 +19,8 @@ type GalleryItem = {
   title: string;
   image?: string;
   links: LinkItem[];
+  index?: number;
+  showDevTitle?: boolean;
 };
 
 function looksEncrypted(str: string | undefined): boolean {
@@ -28,6 +31,26 @@ export default function GalleryUploader() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [showDevTitle, setShowDevTitle] = useState(false);
+
+  const [progress, setProgress] = useState(0);
+const [currentRow, setCurrentRow] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+
+
+
+useEffect(() => {
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.key.toLowerCase() === 't') {
+      setShowDevTitle((prev) => !prev);
+    }
+  };
+
+  window.addEventListener('keydown', handleKey);
+  return () => window.removeEventListener('keydown', handleKey);
+}, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,9 +66,11 @@ export default function GalleryUploader() {
         complete: async (result: ParseResult<RawCSVRow>) => {
           try {
             const rows = result.data;
+            setTotalRows(rows.length);
+            setCurrentRow(0);
 
             const decryptedRows: GalleryItem[] = await Promise.all(
-              rows.map(async (row) => {
+              rows.map(async (row, i) => {
                 const title = looksEncrypted(row.title) ? await safeDecrypt(row.title) : row.title ?? "";
                 const image = looksEncrypted(row.image) ? await safeDecrypt(row.image) : row.image;
              
@@ -65,6 +90,10 @@ export default function GalleryUploader() {
                     });
                   }
                 }
+
+                // Progress tracking
+                setCurrentRow((prev) => prev + 1);
+                setProgress(Math.round(((i + 1) / rows.length) * 100));
                 
                 return { title, image, links };
               })
@@ -94,7 +123,7 @@ export default function GalleryUploader() {
     }
   }
 
-  console.log(items);
+
   return (
     <div className="w-full px-4 py-6 flex flex-col items-center">
       <div className="w-full max-w-md">
@@ -107,15 +136,47 @@ export default function GalleryUploader() {
       </div>
 
       {loading && (
-        <div className="text-center text-gray-500 py-8">Loading gallery...</div>
-      )}
+  <div className="w-full max-w-md py-6">
+    <div className="mb-2 text-sm text-center text-gray-500">
+      Parsing row {currentRow} of {totalRows}
+    </div>
+    <div className="w-full h-3 rounded bg-gray-200 overflow-hidden">
+      <div
+        className="h-full bg-blue-500 transition-all duration-200"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  </div>
+)}
+
+<div className="mb-4 flex gap-2 items-center justify-end w-full max-w-4xl">
+            <Button
+              variant={view === 'grid' ?'outline': 'default' }
+              size="sm"
+              onClick={() => setView('grid')}
+            >
+              Grid
+            </Button>
+            <Button
+              variant={view === 'list' ? 'outline': 'default'}
+              size="sm"
+              onClick={() => setView('list')}
+            >
+              List
+            </Button>
+          </div>
 
       {error && (
         <div className="text-red-600 text-center py-4">{error}</div>
       )}
 
       {!loading && !error && (
-       <div className="grid grid-cols-2 gap-4 w-full max-w-4xl px-2 mt-6">
+       <div
+       className={`grid gap-4 w-full max-w-4xl px-2 mt-6 ${
+         view === 'grid' ? 'grid-cols-2' : 'grid-cols-1'
+       }`}
+     >
+
        {items.map((item, index) => (
          <div key={index} className="w-full">
            <AnimatedCard delay={(index % 2) * 0.1}>
@@ -123,6 +184,8 @@ export default function GalleryUploader() {
                title={item.title}
                imageUrl={item.image}
                links={item.links}
+               index={index}
+               showDevTitle={showDevTitle}
              />
            </AnimatedCard>
          </div>

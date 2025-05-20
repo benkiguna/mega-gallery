@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Copy } from 'lucide-react';
@@ -14,9 +14,11 @@ type GalleryCardProps = {
   title: string;
   imageUrl?: string;
   links: LinkItem[];
+  index?: number;
+  showDevTitle?: boolean;
 };
 
-export default function GalleryCard({ title, imageUrl, links }: GalleryCardProps) {
+export default function GalleryCard({ title, imageUrl, links,index ,showDevTitle}: GalleryCardProps) {
   const [flipped, setFlipped] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
@@ -42,6 +44,9 @@ export default function GalleryCard({ title, imageUrl, links }: GalleryCardProps
 
   return (
     <div className="relative w-full aspect-square p-4" style={{ perspective: 1000 }}>
+      {showDevTitle && index !== undefined && (
+        <div className="text-sm text-gray-400 text-center mb-2">Card {index + 1}</div>
+)}
       <motion.div
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ duration: 0.6 }}
