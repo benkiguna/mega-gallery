@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { encryptText } from "@/lib/crypto-utils";
+import { Spinner } from "@guna/components/ui/spinner";
 
 export default function AddGalleryItemForm() {
   const [formState, setFormState] = useState({
@@ -152,6 +153,11 @@ export default function AddGalleryItemForm() {
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? "Uploading..." : "Upload Item"}
             </Button>
+            {submitting && (
+              <div className="flex justify-center items-center py-12">
+                <Spinner className="w-6 h-6" />
+              </div>
+            )}
             {message && (
               <p className="text-center text-sm pt-2 text-muted-foreground">
                 {message}

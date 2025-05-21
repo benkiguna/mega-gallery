@@ -6,6 +6,7 @@ import AnimatedCard from "./AnimatedCard";
 import { decryptText } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@guna/components/ui/button";
+import { Spinner } from "@guna/components/ui/spinner";
 
 export default function GalleryUploader() {
   const [items, setItems] = useState<any[]>([]);
@@ -127,8 +128,11 @@ export default function GalleryUploader() {
       </div>
 
       {loading && (
-        <div className="py-6 text-sm text-muted-foreground text-center">
-          Loading more...
+        <div className="flex justify-center items-center py-12">
+          <div className="py-6 mx-4 text-sm text-muted-foreground text-center">
+            Loading more...
+          </div>
+          <Spinner className="w-6 h-6" />
         </div>
       )}
     </div>
