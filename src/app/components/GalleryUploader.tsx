@@ -106,11 +106,15 @@ export default function GalleryUploader() {
         }`}
       >
         {filteredItems.map((item, index) => {
-          const isLast = index === filteredItems.length - 1;
+          const preloadOffset = 4;
+          const isTrigger =
+            index === filteredItems.length - preloadOffset &&
+            filteredItems.length >= preloadOffset;
+
           return (
             <div
               key={index}
-              ref={isLast ? lastItemRef : null}
+              ref={isTrigger ? lastItemRef : null}
               className="w-full"
             >
               <AnimatedCard delay={(index % 2) * 0.1}>
