@@ -19,16 +19,7 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error || !items || items.length === 0) {
-      return NextResponse.json(
-        { success: true, data: [] },
-        {
-          status: 200,
-          headers: {
-            "Cache-Control":
-              "public, max-age=172800, stale-while-revalidate=86400",
-          },
-        }
-      );
+      return NextResponse.json({ success: true, data: [] });
     }
 
     const itemIds = items.map((item) => item.id);
@@ -60,16 +51,7 @@ export async function GET(req: NextRequest) {
         .map((link) => ({ url: link.url, password: link.password })),
     }));
 
-    return NextResponse.json(
-      { success: true, data: itemsWithLinks },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control":
-            "public, max-age=172800, stale-while-revalidate=86400",
-        },
-      }
-    );
+    return NextResponse.json({ success: true, data: itemsWithLinks });
   } catch (err) {
     console.error("Unhandled error:", err);
     return NextResponse.json(

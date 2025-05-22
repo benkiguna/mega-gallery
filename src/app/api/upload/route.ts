@@ -45,20 +45,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🔁 Optional: trigger cache revalidation client-side
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Upload complete. Please refresh gallery.",
-        revalidate: true, // frontend can use this to refetch
-      },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Upload API error:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

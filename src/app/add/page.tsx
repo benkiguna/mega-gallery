@@ -75,11 +75,6 @@ export default function AddGalleryItemForm() {
       });
 
       const result = await res.json();
-
-      if (result.revalidate) {
-        await fetch("/api/gallery?refresh=" + Date.now());
-      }
-
       if (res.ok) {
         setMessage("Item uploaded successfully!");
         setFormState({
