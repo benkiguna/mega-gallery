@@ -86,7 +86,7 @@ export default function GalleryCard({
 
         {/* Back Face */}
         <div
-          className="absolute inset-0 w-full h-full rounded shadow-md border bg-white p-4 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300"
+          className="absolute inset-0 w-full h-full rounded shadow-md border bg-white dark:bg-[#1e1e1f] dark:text-gray-200 p-4 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400"
           style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}
         >
           <div className="flex flex-col gap-3">
@@ -102,7 +102,7 @@ export default function GalleryCard({
                     e.stopPropagation();
                     window.open(link.url, "_blank", "noopener,noreferrer");
                   }}
-                  className="truncate max-w-[70%] text-left text-blue-600"
+                  className="truncate max-w-[70%] text-left text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 transition"
                 >
                   Visit Link {index + 1}
                 </Button>
@@ -115,12 +115,13 @@ export default function GalleryCard({
                       e.stopPropagation();
                       handleCopy(link.password!, index);
                     }}
+                    className="flex items-center gap-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
                   >
                     {copiedIndex === index ? (
                       "Copied!"
                     ) : (
                       <>
-                        <Copy size={14} className="mr-1" />
+                        <Copy size={14} />
                         Copy Password
                       </>
                     )}
@@ -139,7 +140,10 @@ export default function GalleryCard({
                   e.stopPropagation();
                   setFlipped(false);
                 }}
-              ></Button>
+                className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+              >
+                ← Back
+              </Button>
             </div>
           )}
         </div>

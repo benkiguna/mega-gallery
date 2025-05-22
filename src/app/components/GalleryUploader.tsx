@@ -35,7 +35,7 @@ export default function GalleryUploader() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/gallery?page=${page}&limit=10`);
+        const res = await fetch(`/api/gallery?page=${page}&limit=20`);
         const json = await res.json();
 
         if (!json?.data || !Array.isArray(json.data)) {
