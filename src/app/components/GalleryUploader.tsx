@@ -7,6 +7,7 @@ import { decryptText } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@guna/components/ui/button";
 import { Spinner } from "@guna/components/ui/spinner";
+import GalleryCardSkeleton from "./GalleryCardSkeleton";
 
 export default function GalleryUploader() {
   const [items, setItems] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function GalleryUploader() {
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [filter, setFilter] = useState<"all" | "favorites">("all");
 
   const observer = useRef<IntersectionObserver | null>(null);
   const lastItemRef = useCallback(
@@ -45,8 +47,10 @@ export default function GalleryUploader() {
 
         const decrypted = await Promise.all(
           json.data.map(async (item: any) => ({
+            id: item.id,
             title: await decryptText(item.title),
             image: item.image ? await decryptText(item.image) : undefined,
+            is_favorite: item.is_favorite ?? false,
             links: await Promise.all(
               item.links.map(async (link: any) => ({
                 url: await decryptText(link.url),
@@ -68,9 +72,14 @@ export default function GalleryUploader() {
     fetchData();
   }, [page]);
 
-  const filteredItems = items.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredItems = items.filter((item) => {
+    const matchesSearch = item.title
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesFavorite =
+      filter === "favorites" ? item.is_favorite === true : true;
+    return matchesSearch && matchesFavorite;
+  });
 
   return (
     <div className="w-full px-4 py-6 flex flex-col items-center bg-white dark:bg-black">
@@ -97,6 +106,15 @@ export default function GalleryUploader() {
           >
             List
           </Button>
+          <Button
+            variant={filter === "favorites" ? "default" : "outline"}
+            size="sm"
+            onClick={() =>
+              setFilter((prev) => (prev === "favorites" ? "all" : "favorites"))
+            }
+          >
+            {filter === "favorites" ? "Showing Favorites" : "Show Favorites"}
+          </Button>
         </div>
       </div>
 
@@ -105,38 +123,48 @@ export default function GalleryUploader() {
           view === "grid" ? "grid-cols-2" : "grid-cols-1"
         }`}
       >
-        {filteredItems.map((item, index) => {
-          const preloadOffset = 4;
-          const isTrigger =
-            index === filteredItems.length - preloadOffset &&
-            filteredItems.length >= preloadOffset;
+        {filteredItems.length > 0
+          ? filteredItems.map((item, index) => {
+              console.log(item);
+              const preloadOffset = 4;
+              const isTrigger =
+                index === filteredItems.length - preloadOffset &&
+                filteredItems.length >= preloadOffset;
 
-          return (
-            <div
-              key={index}
-              ref={isTrigger ? lastItemRef : null}
-              className="w-full"
-            >
-              <AnimatedCard delay={(index % 2) * 0.1}>
-                <GalleryCard
-                  title={item.title}
-                  imageUrl={item.image}
-                  links={item.links}
-                  index={index}
-                  showDevTitle={false}
-                />
-              </AnimatedCard>
-            </div>
-          );
-        })}
+              return (
+                <div
+                  key={index}
+                  ref={isTrigger ? lastItemRef : null}
+                  className="w-full"
+                >
+                  <AnimatedCard delay={(index % 2) * 0.1}>
+                    <GalleryCard
+                      id={item.id}
+                      title={item.title}
+                      imageUrl={item.image}
+                      links={item.links}
+                      isFavorite={item.is_favorite}
+                      index={index}
+                      showDevTitle={false}
+                    />
+                  </AnimatedCard>
+                </div>
+              );
+            })
+          : loading &&
+            Array.from({ length: view === "grid" ? 6 : 3 }).map((_, i) => (
+              <GalleryCardSkeleton key={`init-skeleton-${i}`} />
+            ))}
+        {loading &&
+          filteredItems.length > 0 &&
+          Array.from({ length: view === "grid" ? 4 : 2 }).map((_, i) => (
+            <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
+          ))}
       </div>
 
-      {loading && (
-        <div className="flex justify-center items-center py-12">
-          <div className="py-6 mx-4 text-sm text-muted-foreground text-center">
-            Loading more...
-          </div>
-          <Spinner className="w-6 h-6" />
+      {loading && filteredItems.length === 0 && (
+        <div className="py-12 text-sm text-muted-foreground text-center">
+          Loading gallery...
         </div>
       )}
     </div>

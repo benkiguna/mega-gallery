@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: items, error } = await supabase
       .from("gallery_items")
-      .select("id, title, image, created_at")
+      .select("id, title, image, created_at, is_favorite")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -44,8 +44,10 @@ export async function GET(req: NextRequest) {
     }
 
     const itemsWithLinks = items.map((item) => ({
+      id: item.id,
       title: item.title,
       image: item.image,
+      is_favorite: item.is_favorite ?? false,
       links: chunkedLinks
         .filter((link) => link.item_id === item.id)
         .map((link) => ({ url: link.url, password: link.password })),

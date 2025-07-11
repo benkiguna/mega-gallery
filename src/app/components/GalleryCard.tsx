@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Copy } from "lucide-react";
+import { Copy, Heart, HeartOff } from "lucide-react"; // ❤️ Icons
 
 type LinkItem = {
   url: string;
@@ -11,22 +11,27 @@ type LinkItem = {
 };
 
 type GalleryCardProps = {
+  id: string;
   title: string;
   imageUrl?: string;
   links: LinkItem[];
   index?: number;
   showDevTitle?: boolean;
+  isFavorite: boolean;
 };
 
 export default function GalleryCard({
+  id,
   title,
   imageUrl,
   links,
   index,
   showDevTitle,
+  isFavorite: initialFavorite,
 }: GalleryCardProps) {
   const [flipped, setFlipped] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [isFavorite, setIsFavorite] = useState(initialFavorite);
 
   const isFlippable = links.length > 1 || links[0]?.password;
 
@@ -48,11 +53,35 @@ export default function GalleryCard({
     setFlipped(!flipped);
   };
 
+  const toggleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newFavorite = !isFavorite;
+    setIsFavorite(newFavorite);
+
+    await fetch("/api/gallery/favorite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId: id, isFavorite: newFavorite }),
+    });
+  };
+
   return (
     <div
       className="relative w-full aspect-square p-4 dark:bg-[#1e1e1f]"
       style={{ perspective: 1000 }}
     >
+      {/* Top-right favorite toggle */}
+      <button
+        onClick={toggleFavorite}
+        className="absolute top-6 right-6 z-20 bg-white dark:bg-black/50 rounded-full p-1 shadow hover:scale-110 transition"
+      >
+        {isFavorite ? (
+          <Heart className="text-red-500 fill-red-500 w-4 h-4" />
+        ) : (
+          <HeartOff className="text-gray-400 w-4 h-4" />
+        )}
+      </button>
+
       {showDevTitle && index !== undefined && (
         <div className="text-sm text-gray-400 text-center mb-2">
           {index + 1}
