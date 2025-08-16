@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Copy, Heart, HeartOff, ChevronLeft, ChevronRight, Settings, X } from "lucide-react";
+import { Copy, Heart, HeartOff, ChevronLeft, ChevronRight } from "lucide-react";
 
 type LinkItem = {
   url: string;
@@ -34,7 +34,6 @@ export default function ModernGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showLinks, setShowLinks] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
   const thumbnailRef = useRef<HTMLDivElement>(null);
 
   // Debug logging
@@ -56,7 +55,6 @@ export default function ModernGallery({
       } else if (e.key === 'ArrowRight') {
         navigateImage('next');
       } else if (e.key === 'Escape') {
-        setShowOptions(false);
         setShowLinks(false);
       }
     };
@@ -141,58 +139,6 @@ export default function ModernGallery({
 
   return (
     <div className="w-full h-full flex flex-col">
-      {/* Collapsible Options Panel */}
-      <div className="relative z-30">
-        <AnimatePresence>
-          {showOptions && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-white dark:bg-black border-b dark:border-gray-700 shadow-lg"
-            >
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Gallery Options</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowOptions(false)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  {/* Quick Stats */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Gallery Stats</label>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      <div>Total Images: {items.length}</div>
-                      <div>Favorites: {items.filter(item => item.isFavorite).length}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Options Toggle Button */}
-        <div className="absolute top-4 right-4 z-20">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowOptions(!showOptions)}
-            className="bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            Options
-          </Button>
-        </div>
-
-
-      </div>
 
       {/* Main Gallery Content */}
       <div className="flex-1 flex flex-col min-h-0">
