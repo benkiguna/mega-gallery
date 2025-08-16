@@ -5,8 +5,8 @@ import GalleryCard from "./GalleryCard";
 import AnimatedCard from "./AnimatedCard";
 import { decryptText } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
-import { Button } from "@guna/components/ui/button";
-import { Spinner } from "@guna/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import GalleryCardSkeleton from "./GalleryCardSkeleton";
 
 export default function GalleryUploader() {
@@ -82,7 +82,7 @@ export default function GalleryUploader() {
   });
 
   return (
-    <div className="w-full px-4 py-6 flex flex-col items-center bg-white dark:bg-black">
+    <div className="w-full flex flex-col items-center">
       <div className="sticky top-14 z-10 bg-white dark:bg-black border-b dark:border-gray-700 w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 py-4 px-2">
         <Input
           type="text"
