@@ -22,7 +22,7 @@ export default function GalleryUploader() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState<"all" | "favorites">("all");
   const [design, setDesign] = useState<"classic" | "modern">("classic");
-  const [showControls, setShowControls] = useState(true);
+  const [showControls, setShowControls] = useState(false);
   const [activeTab, setActiveTab] = useState<"gallery" | "links">("gallery");
 
   const observer = useRef<IntersectionObserver | null>(null);

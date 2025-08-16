@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Copy, Heart, HeartOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Copy, Heart, HeartOff } from "lucide-react";
 
 type LinkItem = {
   url: string;
@@ -35,6 +35,7 @@ export default function ModernGallery({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showLinks, setShowLinks] = useState(false);
   const thumbnailRef = useRef<HTMLDivElement>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
 
   // Debug logging
   console.log('ModernGallery rendered with:', { items: items.length, loading, hasMore });
@@ -84,30 +85,129 @@ export default function ModernGallery({
     });
   };
 
-  const scrollToThumbnail = (index: number) => {
-    if (thumbnailRef.current) {
-      const thumbnail = thumbnailRef.current.children[index] as HTMLElement;
-      if (thumbnail) {
-        thumbnail.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'nearest',
-          inline: 'center'
-        });
+  // Pivot-based scroll handling - optimized for performance
+  const handleThumbnailScroll = useCallback(() => {
+    if (!thumbnailRef.current) return;
+
+    const container = thumbnailRef.current;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate the center of the visible container (pivot point)
+    const containerCenter = containerRect.left + containerRect.width / 2;
+
+    // Find which thumbnail is closest to the center (pivot point)
+    let closestIndex = 0;
+    let minDistance = Infinity;
+
+    // Use more efficient iteration
+    const children = container.children;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as HTMLElement;
+      const childRect = child.getBoundingClientRect();
+      const childCenter = childRect.left + childRect.width / 2;
+      const distance = Math.abs(childCenter - containerCenter);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
       }
     }
-  };
+
+    // Update active index if it changed - immediate update
+    if (closestIndex !== activeIndex && closestIndex < items.length) {
+      setActiveIndex(closestIndex);
+    }
+  }, [activeIndex, items.length]);
+
+  // Scroll to center the active thumbnail in the pivot viewport
+  const scrollToPivot = useCallback((index: number) => {
+    if (!thumbnailRef.current) return;
+
+    const container = thumbnailRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const containerCenter = containerRect.width / 2;
+    
+    const targetChild = container.children[index] as HTMLElement;
+    if (!targetChild) return;
+
+    const targetRect = targetChild.getBoundingClientRect();
+    const targetCenter = targetRect.width / 2;
+    
+    const scrollLeft = targetChild.offsetLeft - containerCenter + targetCenter;
+    
+    container.scrollTo({
+      left: scrollLeft,
+      behavior: 'smooth'
+    });
+  }, []);
 
   const navigateImage = (direction: 'prev' | 'next') => {
     if (direction === 'prev' && activeIndex > 0) {
       const newIndex = activeIndex - 1;
       setActiveIndex(newIndex);
-      scrollToThumbnail(newIndex);
+      scrollToPivot(newIndex);
     } else if (direction === 'next' && activeIndex < items.length - 1) {
       const newIndex = activeIndex + 1;
       setActiveIndex(newIndex);
-      scrollToThumbnail(newIndex);
+      scrollToPivot(newIndex);
     }
   };
+
+  // Handle thumbnail click with pivot centering
+  const handleThumbnailClick = (index: number) => {
+    setActiveIndex(index);
+    scrollToPivot(index);
+  };
+
+  // Add scroll event listener for pivot detection and infinite scroll
+  useEffect(() => {
+    const container = thumbnailRef.current;
+    if (!container) return;
+
+    let scrollTimeout: NodeJS.Timeout;
+    
+    const handleScroll = () => {
+      // Use requestAnimationFrame for smooth, crisp pivot updates
+      requestAnimationFrame(() => {
+        handleThumbnailScroll();
+      });
+      
+      // Check for infinite scroll when near the end
+      const scrollLeft = container.scrollLeft;
+      const scrollWidth = container.scrollWidth;
+      const clientWidth = container.clientWidth;
+      const scrollPosition = scrollLeft + clientWidth;
+      const scrollThreshold = scrollWidth - 100; // 100px threshold
+      
+      if (scrollPosition >= scrollThreshold && hasMore && !loading) {
+        console.log('Infinite scroll triggered:', { scrollLeft, scrollWidth, clientWidth, scrollPosition, scrollThreshold });
+        // Trigger infinite scroll
+        if (lastItemRef) {
+          // Create a dummy element to trigger the intersection observer
+          const dummyElement = document.createElement('div');
+          lastItemRef(dummyElement);
+        }
+      }
+      
+      // Debounce the scrolling state
+      setIsScrolling(true);
+      clearTimeout(scrollTimeout);
+      
+      scrollTimeout = setTimeout(() => {
+        setIsScrolling(false);
+      }, 16); // ~60fps for smooth state updates
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    
+    // Initial pivot calculation
+    setTimeout(() => handleThumbnailScroll(), 50);
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
+  }, [handleThumbnailScroll, hasMore, loading, lastItemRef]);
 
   if (loading && items.length === 0) {
     return (
@@ -139,35 +239,24 @@ export default function ModernGallery({
 
   return (
     <div className="w-full h-full flex flex-col">
-
       {/* Main Gallery Content */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Top Row - Active Image */}
-        <div className="flex-1 relative bg-white dark:bg-black rounded-lg overflow-hidden border dark:border-gray-700 mb-4 mx-4">
-          {/* Navigation Arrows */}
-          {items.length > 1 && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigateImage('prev')}
-                disabled={activeIndex === 0}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigateImage('next')}
-                disabled={activeIndex === items.length - 1}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </Button>
-            </>
+        {/* Top Row - Active Image with Background Cover Art */}
+        <div className="flex-1 relative rounded-lg overflow-hidden border dark:border-gray-700 mb-4 mx-4">
+          {/* Background Image as Cover Art */}
+          {activeItem.imageUrl && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{
+                backgroundImage: `url(${activeItem.imageUrl})`,
+                filter: 'blur(8px) brightness(1)',
+              }}
+            />
           )}
-
+          
+          {/* Dark Overlay for Better Text Readability */}
+          <div className="absolute inset-0 bg-black/40" />
+          
           {/* Favorite Toggle */}
           <Button
             variant="ghost"
@@ -182,16 +271,20 @@ export default function ModernGallery({
             )}
           </Button>
 
-          {/* Main Image */}
-          <div className="w-full h-full flex items-center justify-center p-8">
+          {/* Main Image Overlay */}
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-8">
             {activeItem.imageUrl ? (
               <img
                 src={activeItem.imageUrl}
                 alt={activeItem.title}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                className="max-w-full max-h-full object-contain rounded-lg"
+                style={{
+                  filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.3)) drop-shadow(0 0 60px rgba(255,255,255,0.2))',
+                  boxShadow: '0 0 40px rgba(255,255,255,0.4), inset 0 0 20px rgba(255,255,255,0.1)',
+                }}
               />
             ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400">
+              <div className="text-center text-gray-300">
                 <div className="text-2xl font-medium mb-2">{activeItem.title}</div>
                 <div className="text-sm">No image available</div>
               </div>
@@ -200,19 +293,27 @@ export default function ModernGallery({
 
           {/* Image Info and Actions */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-            <div className="flex items-center justify-between">
-              <div className="text-white">
+            <div className="flex flex-col items-center text-center">
+              <div className="text-white mb-3">
                 <h3 className="text-xl font-semibold mb-1">{activeItem.title}</h3>
                 <p className="text-sm text-gray-300">
                   {activeIndex + 1} of {items.length}
                 </p>
               </div>
               
-              {activeItem.links.length > 0 && (
+              {activeItem.links.length === 1 ? (
+                <Button
+                  onClick={() => window.open(activeItem.links[0].url, '_blank')}
+                  variant="outline"
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 px-6"
+                >
+                  View
+                </Button>
+              ) : activeItem.links.length > 1 && (
                 <Button
                   onClick={() => setShowLinks(!showLinks)}
                   variant="outline"
-                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 px-6"
                 >
                   {showLinks ? 'Hide Links' : 'Show Links'}
                 </Button>
@@ -263,65 +364,58 @@ export default function ModernGallery({
           </div>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="mx-4 mb-2">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-            <span>Image {activeIndex + 1} of {items.length}</span>
-            <span>{Math.round(((activeIndex + 1) / items.length) * 100)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
-            <div 
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((activeIndex + 1) / items.length) * 100}%` }}
-            ></div>
-          </div>
-        </div>
 
-        {/* Bottom Row - Horizontal Thumbnail List */}
+
+        {/* Bottom Row - Pivot-based Thumbnail Carousel */}
         <div className="h-32 mx-4 mb-4">
-          <div
-            ref={thumbnailRef}
-            className="flex gap-3 overflow-x-auto scrollbar-hide pb-4"
-          >
-            {items.map((item, index) => (
-              <div
-                key={item.id}
-                ref={index === items.length - 1 ? lastItemRef : null}
-                className={`flex-shrink-0 cursor-pointer transition-all duration-200 ${
-                  index === activeIndex 
-                    ? 'ring-2 ring-blue-500 scale-105' 
-                    : 'hover:scale-105'
-                }`}
-                onClick={() => {
-                  setActiveIndex(index);
-                  scrollToThumbnail(index);
-                }}
-              >
-                <div className="w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 text-center p-2">
-                      {item.title}
-                    </div>
-                  )}
+          
+          {/* Pivot Viewport Container */}
+          <div className="relative">
+            {/* Thumbnail Scroll Container */}
+            <div
+              ref={thumbnailRef}
+              className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 px-12"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {items.map((item, index) => (
+                <div
+                  key={item.id}
+
+                  className={`flex-shrink-0 cursor-pointer transition-all duration-200 ${
+                    index === activeIndex 
+                      ? 'scale-110 shadow-lg shadow-blue-500/30' 
+                      : 'hover:scale-105'
+                  }`}
+                  onClick={() => handleThumbnailClick(index)}
+                  data-index={index}
+                  data-is-last={index === items.length - 1}
+                >
+                  <div className="w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 text-center p-2">
+                        {item.title}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-center mt-1 text-gray-600 dark:text-gray-400 truncate max-w-24">
+                    {item.title}
+                  </div>
                 </div>
-                <div className="text-xs text-center mt-1 text-gray-600 dark:text-gray-400 truncate max-w-24">
-                  {item.title}
+              ))}
+              
+              {/* Loading indicator */}
+              {loading && hasMore && (
+                <div className="flex-shrink-0 w-24 h-24 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
                 </div>
-              </div>
-            ))}
-            
-            {/* Loading indicator */}
-            {loading && hasMore && (
-              <div className="flex-shrink-0 w-24 h-24 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
