@@ -12,20 +12,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GalleryCardSkeleton from "./GalleryCardSkeleton";
 
+type GalleryItem = {
+  id: string;
+  title: string;
+  image?: string;
+  imageUrl?: string;
+  is_favorite: boolean;
+  isFavorite: boolean;
+  links: Array<{ url: string; password?: string }>;
+};
+
 export default function GalleryUploader() {
-  const [items, setItems] = useState<
-    Array<{
-      id: string;
-      title: string;
-      image?: string;
-      imageUrl?: string;
-      is_favorite: boolean;
-      isFavorite: boolean;
-      links: Array<{ url: string; password?: string }>;
-    }>
-  >([]);
+  const [items, setItems] = useState<GalleryItem[]>([]);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [limit] = useState(10);
+  const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -34,101 +35,192 @@ export default function GalleryUploader() {
   const [showControls, setShowControls] = useState(false);
   const [activeTab, setActiveTab] = useState<"gallery" | "links">("gallery");
 
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastItemRef = useCallback(
-    (node: HTMLDivElement) => {
-      if (loading) return;
-      if (observer.current) observer.current.disconnect();
-      observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore) {
-          setPage((prev) => prev + 1);
-        }
-      });
-      if (node) observer.current.observe(node);
+  // --- Infinite scroll infra
+  const ioRef = useRef<IntersectionObserver | null>(null);
+  const rootElRef = useRef<HTMLElement | null>(null); // current scroll root
+  const sentinelElRef = useRef<HTMLElement | null>(null); // current sentinel
+  const fetchingRef = useRef(false);
+
+  // Recreate IO with the current root
+  const createObserver = useCallback(
+    (root: Element | Document | null) => {
+      ioRef.current?.disconnect();
+      ioRef.current = new IntersectionObserver(
+        (entries) => {
+          const e = entries[0];
+          if (!e?.isIntersecting) return;
+          if (fetchingRef.current) return;
+          if (!hasMore) return;
+          fetchingRef.current = true;
+          setPage((p) => p + 1);
+        },
+        { root: (root as Element) ?? null, rootMargin: "320px", threshold: 0 }
+      );
+      // if we already have a sentinel mounted, observe it with the new IO
+      if (sentinelElRef.current) {
+        ioRef.current.observe(sentinelElRef.current);
+      }
     },
-    [loading, hasMore]
+    [hasMore]
   );
 
+  // Root callback ref — called whenever the modern/classic root DOM node changes
+  const setRootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      // In classic mode we use viewport root (null)
+      const effectiveRoot =
+        design === "modern" ? (node as Element | null) : null;
+
+      rootElRef.current = node;
+      createObserver(effectiveRoot);
+    },
+    [design, createObserver]
+  );
+
+  // Sentinel callback ref — unobserve old, observe new
+  const setSentinelRef = useCallback((node: HTMLDivElement | null) => {
+    if (sentinelElRef.current && ioRef.current) {
+      ioRef.current.unobserve(sentinelElRef.current);
+    }
+    sentinelElRef.current = node;
+    if (node && ioRef.current) {
+      ioRef.current.observe(node);
+    }
+  }, []);
+
+  // Scroll fallback for modern: in case IO misses, detect near-bottom by scroll
   useEffect(() => {
+    if (design !== "modern") return;
+
+    let raf = 0;
+    const el = rootElRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!hasMore || fetchingRef.current) return;
+        const pad = 400; // prefetch before bottom
+        const nearBottom =
+          el.scrollTop + el.clientHeight >= el.scrollHeight - pad;
+        if (nearBottom) {
+          fetchingRef.current = true;
+          setPage((p) => p + 1);
+        }
+      });
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [design, hasMore]);
+
+  // Reset observer when toggling design so it never “sticks”
+  useEffect(() => {
+    // Rebuild using the new root (callback ref will also run on next render)
+    createObserver(
+      design === "modern" ? (rootElRef.current as Element | null) : null
+    );
+    return () => {
+      ioRef.current?.disconnect();
+    };
+  }, [design, createObserver]);
+
+  // --- Data fetching
+  useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/gallery?page=${page}&limit=10`);
+        const res = await fetch(`/api/gallery?page=${page}&limit=${limit}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        if (!json?.data || !Array.isArray(json.data)) {
-          console.warn("Invalid API response:", json);
-          return;
-        }
+        const raw: Array<{
+          id: string;
+          title: string;
+          image?: string;
+          is_favorite?: boolean;
+          links?: Array<{ url: string; password?: string }>;
+        }> = Array.isArray(json?.data) ? json.data : [];
 
-        const decrypted = await Promise.all(
-          json.data.map(
-            async (item: {
-              id: string;
-              title: string;
-              image?: string;
-              is_favorite?: boolean;
-              links: Array<{ url: string; password?: string }>;
-            }) => ({
+        const decrypted: GalleryItem[] = await Promise.all(
+          raw.map(async (item) => {
+            const title = await safeDecrypt(item.title);
+            const image = item.image
+              ? await safeDecrypt(item.image)
+              : undefined;
+            const rawLinks = Array.isArray(item.links) ? item.links : [];
+            const links = await Promise.all(
+              rawLinks.map(async (link) => ({
+                url: await safeDecrypt(link.url),
+                password: link.password
+                  ? await safeDecrypt(link.password)
+                  : undefined,
+              }))
+            );
+            const fav = item.is_favorite ?? false;
+            return {
               id: item.id,
-              title: await decryptText(item.title),
-              image: item.image ? await decryptText(item.image) : undefined,
-              imageUrl: item.image ? await decryptText(item.image) : undefined, // Add this for ModernGallery
-              is_favorite: item.is_favorite ?? false,
-              isFavorite: item.is_favorite ?? false, // Add this for ModernGallery
-              links: await Promise.all(
-                item.links.map(
-                  async (link: { url: string; password?: string }) => ({
-                    url: await decryptText(link.url),
-                    password: link.password
-                      ? await decryptText(link.password)
-                      : undefined,
-                  })
-                )
-              ),
-            })
-          )
+              title,
+              image,
+              imageUrl: image,
+              is_favorite: fav,
+              isFavorite: fav,
+              links,
+            };
+          })
         );
-        setItems((prev) => [...prev, ...decrypted]);
-        setHasMore(json.data.length > 0);
+
+        if (!cancelled) {
+          setItems((prev) => [...prev, ...decrypted]);
+          setHasMore(raw.length === limit);
+        }
       } catch (err) {
         console.error("Fetch error:", err);
+        if (!cancelled) setHasMore(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          fetchingRef.current = false;
+        }
       }
     };
-    fetchData();
-  }, [page]);
 
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, limit]);
+
+  // Filtered view
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const matchesFavorite =
-      filter === "favorites" ? item.is_favorite === true : true;
+    const matchesFavorite = filter === "favorites" ? item.is_favorite : true;
     return matchesSearch && matchesFavorite;
   });
 
-  // State information for the gallery uploader
-  // console.log('GalleryUploader state:', {
-  //   items: items.length,
-  //   filteredItems: filteredItems.length,
-  //   design,
-  //   loading,
-  //   hasMore
-  // });
+  // Keep ModernGallery prop compat if it expects lastItemRef
+  const noopLastItemRef = useCallback((_node: HTMLDivElement | null) => {}, []);
 
   return (
     <div className="w-full flex flex-col items-center">
       <div
-        className={`sticky top-14 z-10 bg-white dark:bg-black border-b dark:border-gray-700 w-full ${design === "modern" ? "max-w-none" : "max-w-4xl"}`}
+        className={`sticky top-14 z-10 bg-white dark:bg-black border-b dark:border-gray-700 w-full ${
+          design === "modern" ? "max-w-none" : "max-w-4xl"
+        }`}
       >
-        {/* Controls Toggle Button */}
+        {/* Controls */}
         <div className="flex items-center justify-between p-2">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowControls(!showControls)}
+            onClick={() => setShowControls((s) => !s)}
             className="text-sm"
           >
             {showControls ? "Hide Controls" : "Show Controls"}
@@ -151,7 +243,6 @@ export default function GalleryUploader() {
           </div>
         </div>
 
-        {/* Collapsible Controls */}
         <AnimatePresence>
           {showControls && (
             <motion.div
@@ -160,7 +251,6 @@ export default function GalleryUploader() {
               exit={{ opacity: 0, height: 0 }}
               className="px-2 pb-4"
             >
-              {/* Main Tabs */}
               <div className="mb-4">
                 <Tabs
                   value={activeTab}
@@ -176,7 +266,6 @@ export default function GalleryUploader() {
                 </Tabs>
               </div>
 
-              {/* Gallery-specific controls (only show when gallery tab is active) */}
               {activeTab === "gallery" && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Input
@@ -226,61 +315,68 @@ export default function GalleryUploader() {
         </AnimatePresence>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main */}
       {activeTab === "gallery" ? (
         <>
           {design === "modern" ? (
-            <div className="w-full h-[calc(100vh-8rem)]">
+            // IMPORTANT: this is the *scroll root*; the sentinel is inside it
+            <div
+              ref={setRootRef}
+              className="w-full h-[calc(100vh-8rem)] overflow-auto"
+            >
               <ModernGallery
                 items={filteredItems}
                 loading={loading}
                 hasMore={hasMore}
-                lastItemRef={lastItemRef}
+                lastItemRef={noopLastItemRef}
               />
+              {/* Sentinel lives inside the scrolling container */}
+              <div ref={setSentinelRef} className="h-1" />
+              {loading && filteredItems.length === 0 && (
+                <div className="p-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <GalleryCardSkeleton key={`modern-init-skeleton-${i}`} />
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div
+              // In classic, the viewport is the root (ref returns null; IO uses root=null)
+              ref={setRootRef}
               className={`grid gap-4 w-full max-w-4xl px-2 mt-6 ${
                 view === "grid" ? "grid-cols-2" : "grid-cols-1"
               }`}
             >
               {filteredItems.length > 0
-                ? filteredItems.map((item, index) => {
-                    // console.log(item);
-                    const preloadOffset = 4;
-                    const isTrigger =
-                      index === filteredItems.length - preloadOffset &&
-                      filteredItems.length >= preloadOffset;
-
-                    return (
-                      <div
-                        key={index}
-                        ref={isTrigger ? lastItemRef : null}
-                        className="w-full"
-                      >
-                        <AnimatedCard delay={(index % 2) * 0.1}>
-                          <GalleryCard
-                            id={item.id}
-                            title={item.title}
-                            imageUrl={item.image}
-                            links={item.links}
-                            isFavorite={item.is_favorite}
-                            index={index}
-                            showDevTitle={false}
-                          />
-                        </AnimatedCard>
-                      </div>
-                    );
-                  })
+                ? filteredItems.map((item, index) => (
+                    <div key={item.id} className="w-full">
+                      <AnimatedCard delay={(index % 2) * 0.1}>
+                        <GalleryCard
+                          id={item.id}
+                          title={item.title}
+                          imageUrl={item.image}
+                          links={item.links}
+                          isFavorite={item.is_favorite}
+                          index={index}
+                          showDevTitle={false}
+                        />
+                      </AnimatedCard>
+                    </div>
+                  ))
                 : loading &&
                   Array.from({ length: view === "grid" ? 6 : 3 }).map(
                     (_, i) => <GalleryCardSkeleton key={`init-skeleton-${i}`} />
                   )}
+
               {loading &&
                 filteredItems.length > 0 &&
                 Array.from({ length: view === "grid" ? 4 : 2 }).map((_, i) => (
                   <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
                 ))}
+
+              {/* Sentinel — observed with root=null (viewport) */}
+              <div ref={setSentinelRef} className="h-1" />
             </div>
           )}
         </>
@@ -290,11 +386,21 @@ export default function GalleryUploader() {
         </div>
       )}
 
-      {loading && filteredItems.length === 0 && (
+      {loading && filteredItems.length === 0 && design !== "modern" && (
         <div className="py-12 text-sm text-muted-foreground text-center">
           Loading gallery...
         </div>
       )}
     </div>
   );
+}
+
+/** Safe decrypt wrapper so a single bad field doesn’t crash the page */
+async function safeDecrypt(value?: string): Promise<string> {
+  try {
+    return value ? await decryptText(value) : "";
+  } catch (e) {
+    console.warn("Decrypt failed for value:", value, e);
+    return value ?? "";
+  }
 }
