@@ -26,11 +26,13 @@ export async function POST(req: NextRequest) {
 
     // Insert links
     if (links?.length) {
-      const linkRows = links.map((link: any) => ({
-        item_id: item.id,
-        url: link.url,
-        password: link.password ?? null,
-      }));
+      const linkRows = links.map(
+        (link: { url: string; password?: string }) => ({
+          item_id: item.id,
+          url: link.url,
+          password: link.password ?? null,
+        })
+      );
 
       const { error: linksError } = await supabase
         .from("gallery_links")

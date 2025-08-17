@@ -23,7 +23,12 @@ export async function GET(req: NextRequest) {
     }
 
     const itemIds = items.map((item) => item.id);
-    const chunkedLinks: any[] = [];
+    const chunkedLinks: Array<{
+      item_id: string;
+      url: string;
+      password?: string;
+      label?: string;
+    }> = [];
 
     for (let i = 0; i < itemIds.length; i += 30) {
       const chunk = itemIds.slice(i, i + 30);
