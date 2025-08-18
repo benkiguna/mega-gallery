@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     let q = supabase
       .from("gallery_files")
       .select("id, legacy_id, title, file_path, is_favorite, created_at")
-      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(limit);
 
     if (cursor) {
