@@ -26,6 +26,21 @@ async function getKey() {
   );
 }
 
+// NEW: decrypt IV||ciphertext provided as raw bytes (ArrayBuffer)
+export async function decryptBytesToString(ab: ArrayBuffer): Promise<string> {
+  const all = new Uint8Array(ab);
+  if (all.byteLength <= 12) throw new Error("Encrypted payload too short");
+  const iv = all.slice(0, 12);
+  const ciphertext = all.slice(12);
+  const key = await getKey();
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    ciphertext
+  );
+  return decoder.decode(decrypted); // returns your original string (e.g., data URL)
+}
+
 export async function encryptText(plainText: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await getKey();
@@ -69,4 +84,11 @@ export async function decryptText(encryptedText: string): Promise<string> {
     console.warn("Decrypt failed for input:", encryptedText.slice(0, 30));
     return encryptedText;
   }
+}
+
+export async function fetchAndDecrypt(encryptedUrl: string): Promise<string> {
+  const res = await fetch(encryptedUrl);
+  if (!res.ok) throw new Error(`Download failed ${res.status}`);
+  const buf = await res.arrayBuffer();
+  return decryptBytesToString(buf); // no base64, no stack overflow
 }

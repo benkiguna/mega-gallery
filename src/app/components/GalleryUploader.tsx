@@ -7,7 +7,7 @@ import AnimatedCard from "./AnimatedCard";
 import ModernGallery from "./ModernGallery";
 import LinksManager from "./LinksManager";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { decryptText } from "@/lib/crypto-utils";
+import { decryptText, fetchAndDecrypt } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GalleryCardSkeleton from "./GalleryCardSkeleton";
@@ -15,7 +15,6 @@ import GalleryCardSkeleton from "./GalleryCardSkeleton";
 type GalleryItem = {
   id: string;
   title: string;
-  image?: string;
   imageUrl?: string;
   is_favorite: boolean;
   isFavorite: boolean;
@@ -142,7 +141,7 @@ export default function GalleryUploader() {
         const raw: Array<{
           id: string;
           title: string;
-          image?: string;
+          encrypted_url?: string | null; // <-- NEW
           is_favorite?: boolean;
           links?: Array<{ url: string; password?: string }>;
         }> = Array.isArray(json?.data) ? json.data : [];
@@ -150,9 +149,12 @@ export default function GalleryUploader() {
         const decrypted: GalleryItem[] = await Promise.all(
           raw.map(async (item) => {
             const title = await safeDecrypt(item.title);
-            const image = item.image
-              ? await safeDecrypt(item.image)
+
+            // IMPORTANT: image now comes from encrypted_url (signed URL to the .enc file)
+            const imageUrl = item.encrypted_url
+              ? await fetchAndDecrypt(item.encrypted_url) // downloads bytes, base64s, decrypts
               : undefined;
+
             const rawLinks = Array.isArray(item.links) ? item.links : [];
             const links = await Promise.all(
               rawLinks.map(async (link) => ({
@@ -162,12 +164,12 @@ export default function GalleryUploader() {
                   : undefined,
               }))
             );
+
             const fav = item.is_favorite ?? false;
             return {
               id: item.id,
               title,
-              image,
-              imageUrl: image,
+              imageUrl, // <-- keep only decrypted URL here
               is_favorite: fav,
               isFavorite: fav,
               links,
@@ -355,7 +357,7 @@ export default function GalleryUploader() {
                         <GalleryCard
                           id={item.id}
                           title={item.title}
-                          imageUrl={item.image}
+                          imageUrl={item.imageUrl}
                           links={item.links}
                           isFavorite={item.is_favorite}
                           index={index}
