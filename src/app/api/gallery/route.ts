@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
 
     // -------- 2) Fetch links (join via legacy_id) in one shot --------
     const legacyIds = files.map((f) => f.legacy_id).filter(Boolean);
-    let linksByLegacyId: Record<
+    const linksByLegacyId: Record<
       string,
       Array<{ url: string; password: string | null; label?: string | null }>
     > = {};
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
         },
       }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Unhandled error:", err);
     return NextResponse.json(
       { success: false, data: [], error: "Unexpected server error." },
