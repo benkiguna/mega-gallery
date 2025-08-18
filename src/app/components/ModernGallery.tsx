@@ -401,7 +401,7 @@ export default function ModernGallery({
             >
               {items.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.id + index}
                   className={`flex-shrink-0 cursor-pointer transition-all duration-200 ${
                     index === activeIndex
                       ? "scale-110 shadow-lg shadow-blue-500/30"

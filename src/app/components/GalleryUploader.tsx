@@ -21,12 +21,20 @@ type GalleryItem = {
   links: Array<{ url: string; password?: string }>;
 };
 
+type ApiItem = {
+  id: string;
+  title: string;
+  encrypted_url?: string | null;
+  is_favorite?: boolean;
+  links?: Array<{ url: string; password?: string }>;
+};
+
 export default function GalleryUploader() {
   const [items, setItems] = useState<GalleryItem[]>([]);
-  const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState<"all" | "favorites">("all");
@@ -40,6 +48,71 @@ export default function GalleryUploader() {
   const sentinelElRef = useRef<HTMLElement | null>(null); // current sentinel
   const fetchingRef = useRef(false);
 
+  // Fetch a page using cursor
+  const fetchMore = useCallback(async () => {
+    if (fetchingRef.current || !hasMore) return;
+    fetchingRef.current = true;
+    setLoading(true);
+
+    try {
+      const url = new URL("/api/gallery", window.location.origin);
+      url.searchParams.set("limit", String(limit));
+      if (cursor) url.searchParams.set("cursor", cursor);
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      const raw: ApiItem[] = Array.isArray(json?.data) ? json.data : [];
+
+      const decrypted: GalleryItem[] = await Promise.all(
+        raw.map(async (item) => {
+          const title = await safeDecrypt(item.title);
+          const imageUrl = item.encrypted_url
+            ? await fetchAndDecrypt(item.encrypted_url)
+            : undefined;
+
+          const rawLinks = Array.isArray(item.links) ? item.links : [];
+          const links = await Promise.all(
+            rawLinks.map(async (link) => ({
+              url: await safeDecrypt(link.url),
+              password: link.password
+                ? await safeDecrypt(link.password)
+                : undefined,
+            }))
+          );
+
+          const fav = item.is_favorite ?? false;
+          return {
+            id: item.id,
+            title,
+            imageUrl,
+            is_favorite: fav,
+            isFavorite: fav,
+            links,
+          };
+        })
+      );
+
+      setItems((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        const deduped = decrypted.filter((d) => !seen.has(d.id));
+        return deduped.length ? [...prev, ...deduped] : prev;
+      });
+
+      const nextCursor: string | null = json?.nextCursor ?? null;
+      setCursor(nextCursor);
+      // If API didn't provide a cursor, fall back to length check
+      setHasMore(nextCursor ? true : raw.length === limit);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setHasMore(false);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, [cursor, limit, hasMore]);
+
   // Recreate IO with the current root
   const createObserver = useCallback(
     (root: Element | Document | null) => {
@@ -48,28 +121,23 @@ export default function GalleryUploader() {
         (entries) => {
           const e = entries[0];
           if (!e?.isIntersecting) return;
-          if (fetchingRef.current) return;
-          if (!hasMore) return;
-          fetchingRef.current = true;
-          setPage((p) => p + 1);
+          if (fetchingRef.current || !hasMore) return;
+          fetchMore();
         },
         { root: (root as Element) ?? null, rootMargin: "320px", threshold: 0 }
       );
-      // if we already have a sentinel mounted, observe it with the new IO
       if (sentinelElRef.current) {
         ioRef.current.observe(sentinelElRef.current);
       }
     },
-    [hasMore]
+    [hasMore, fetchMore]
   );
 
   // Root callback ref — called whenever the modern/classic root DOM node changes
   const setRootRef = useCallback(
     (node: HTMLDivElement | null) => {
-      // In classic mode we use viewport root (null)
       const effectiveRoot =
         design === "modern" ? (node as Element | null) : null;
-
       rootElRef.current = node;
       createObserver(effectiveRoot);
     },
@@ -102,10 +170,7 @@ export default function GalleryUploader() {
         const pad = 400; // prefetch before bottom
         const nearBottom =
           el.scrollTop + el.clientHeight >= el.scrollHeight - pad;
-        if (nearBottom) {
-          fetchingRef.current = true;
-          setPage((p) => p + 1);
-        }
+        if (nearBottom) fetchMore();
       });
     };
 
@@ -114,11 +179,10 @@ export default function GalleryUploader() {
       if (raf) cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll);
     };
-  }, [design, hasMore]);
+  }, [design, hasMore, fetchMore]);
 
   // Reset observer when toggling design so it never “sticks”
   useEffect(() => {
-    // Rebuild using the new root (callback ref will also run on next render)
     createObserver(
       design === "modern" ? (rootElRef.current as Element | null) : null
     );
@@ -127,76 +191,11 @@ export default function GalleryUploader() {
     };
   }, [design, createObserver]);
 
-  // --- Data fetching
+  // Initial load
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/gallery?page=${page}&limit=${limit}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-
-        const raw: Array<{
-          id: string;
-          title: string;
-          encrypted_url?: string | null; // <-- NEW
-          is_favorite?: boolean;
-          links?: Array<{ url: string; password?: string }>;
-        }> = Array.isArray(json?.data) ? json.data : [];
-
-        const decrypted: GalleryItem[] = await Promise.all(
-          raw.map(async (item) => {
-            const title = await safeDecrypt(item.title);
-
-            // IMPORTANT: image now comes from encrypted_url (signed URL to the .enc file)
-            const imageUrl = item.encrypted_url
-              ? await fetchAndDecrypt(item.encrypted_url) // downloads bytes, base64s, decrypts
-              : undefined;
-
-            const rawLinks = Array.isArray(item.links) ? item.links : [];
-            const links = await Promise.all(
-              rawLinks.map(async (link) => ({
-                url: await safeDecrypt(link.url),
-                password: link.password
-                  ? await safeDecrypt(link.password)
-                  : undefined,
-              }))
-            );
-
-            const fav = item.is_favorite ?? false;
-            return {
-              id: item.id,
-              title,
-              imageUrl, // <-- keep only decrypted URL here
-              is_favorite: fav,
-              isFavorite: fav,
-              links,
-            };
-          })
-        );
-
-        if (!cancelled) {
-          setItems((prev) => [...prev, ...decrypted]);
-          setHasMore(raw.length === limit);
-        }
-      } catch (err) {
-        console.error("Fetch error:", err);
-        if (!cancelled) setHasMore(false);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          fetchingRef.current = false;
-        }
-      }
-    };
-
-    fetchData();
-    return () => {
-      cancelled = true;
-    };
-  }, [page, limit]);
+    fetchMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filtered view
   const filteredItems = items.filter((item) => {
@@ -321,7 +320,7 @@ export default function GalleryUploader() {
       {activeTab === "gallery" ? (
         <>
           {design === "modern" ? (
-            // IMPORTANT: this is the *scroll root*; the sentinel is inside it
+            // Scroll root; the sentinel is inside it
             <div
               ref={setRootRef}
               className="w-full h-[calc(100vh-8rem)] overflow-auto"
@@ -344,7 +343,6 @@ export default function GalleryUploader() {
             </div>
           ) : (
             <div
-              // In classic, the viewport is the root (ref returns null; IO uses root=null)
               ref={setRootRef}
               className={`grid gap-4 w-full max-w-4xl px-2 mt-6 ${
                 view === "grid" ? "grid-cols-2" : "grid-cols-1"
@@ -352,7 +350,7 @@ export default function GalleryUploader() {
             >
               {filteredItems.length > 0
                 ? filteredItems.map((item, index) => (
-                    <div key={item.id} className="w-full">
+                    <div key={item.id + index} className="w-full">
                       <AnimatedCard delay={(index % 2) * 0.1}>
                         <GalleryCard
                           id={item.id}
