@@ -29,6 +29,22 @@ type ApiItem = {
   links?: Array<{ url: string; password?: string }>;
 };
 
+// ----- decrypt cache (module scope) -----
+const decryptedCache = new Map<string, Promise<string>>();
+function getDecryptedOnce(key: string, work: () => Promise<string>) {
+  if (!decryptedCache.has(key)) {
+    decryptedCache.set(
+      key,
+      work().catch((e) => {
+        decryptedCache.delete(key); // allow retry on failure
+        throw e;
+      })
+    );
+  }
+  return decryptedCache.get(key)!;
+}
+// ----------------------------------------
+
 export default function GalleryUploader() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [limit] = useState(10);
@@ -47,6 +63,7 @@ export default function GalleryUploader() {
   const rootElRef = useRef<HTMLElement | null>(null); // current scroll root
   const sentinelElRef = useRef<HTMLElement | null>(null); // current sentinel
   const fetchingRef = useRef(false);
+  const didInitRef = useRef(false);
 
   // Fetch a page using cursor
   const fetchMore = useCallback(async () => {
@@ -69,7 +86,9 @@ export default function GalleryUploader() {
         raw.map(async (item) => {
           const title = await safeDecrypt(item.title);
           const imageUrl = item.encrypted_url
-            ? await fetchAndDecrypt(item.encrypted_url)
+            ? await getDecryptedOnce(item.id, () =>
+                fetchAndDecrypt(item.encrypted_url!)
+              )
             : undefined;
 
           const rawLinks = Array.isArray(item.links) ? item.links : [];
@@ -170,7 +189,7 @@ export default function GalleryUploader() {
         const pad = 400; // prefetch before bottom
         const nearBottom =
           el.scrollTop + el.clientHeight >= el.scrollHeight - pad;
-        if (nearBottom) fetchMore();
+        if (!ioRef.current && nearBottom) fetchMore();
       });
     };
 
@@ -193,6 +212,8 @@ export default function GalleryUploader() {
 
   // Initial load
   useEffect(() => {
+    if (didInitRef.current) return; // <-- guard the first render
+    didInitRef.current = true;
     fetchMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -350,7 +371,7 @@ export default function GalleryUploader() {
             >
               {filteredItems.length > 0
                 ? filteredItems.map((item, index) => (
-                    <div key={item.id + index} className="w-full">
+                    <div key={item.id} className="w-full">
                       <AnimatedCard delay={(index % 2) * 0.1}>
                         <GalleryCard
                           id={item.id}
