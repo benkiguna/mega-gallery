@@ -58,10 +58,13 @@ export default function GalleryUploader() {
   const [showControls, setShowControls] = useState(false);
   const [activeTab, setActiveTab] = useState<"gallery" | "links">("gallery");
 
+  // NEW: which cards are “flipped” to show the links panel
+  const [flipped, setFlipped] = useState<Set<string>>(new Set());
+
   // --- Infinite scroll infra
   const ioRef = useRef<IntersectionObserver | null>(null);
-  const rootElRef = useRef<HTMLElement | null>(null); // current scroll root
-  const sentinelElRef = useRef<HTMLElement | null>(null); // current sentinel
+  const rootElRef = useRef<HTMLElement | null>(null);
+  const sentinelElRef = useRef<HTMLElement | null>(null);
   const fetchingRef = useRef(false);
   const didInitRef = useRef(false);
 
@@ -121,7 +124,6 @@ export default function GalleryUploader() {
 
       const nextCursor: string | null = json?.nextCursor ?? null;
       setCursor(nextCursor);
-      // If API didn't provide a cursor, fall back to length check
       setHasMore(nextCursor ? true : raw.length === limit);
     } catch (err) {
       console.error("Fetch error:", err);
@@ -131,6 +133,30 @@ export default function GalleryUploader() {
       fetchingRef.current = false;
     }
   }, [cursor, limit, hasMore]);
+
+  // NEW: click behavior for a card
+  const handleItemClick = useCallback((item: GalleryItem) => {
+    console.log("Item clicked:", item);
+    const count = item.links?.length ?? 0;
+    if (count === 1) {
+      const href = item.links[0].url;
+      try {
+        // Prefer new tab; noopener for safety
+        window.open(href, "_blank", "noopener,noreferrer");
+      } catch {
+        location.href = href;
+      }
+      return;
+    }
+    if (count > 1) {
+      setFlipped((prev) => {
+        const next = new Set(prev);
+        if (next.has(item.id)) next.delete(item.id);
+        else next.add(item.id);
+        return next;
+      });
+    }
+  }, []);
 
   // Recreate IO with the current root
   const createObserver = useCallback(
@@ -152,7 +178,6 @@ export default function GalleryUploader() {
     [hasMore, fetchMore]
   );
 
-  // Root callback ref — called whenever the modern/classic root DOM node changes
   const setRootRef = useCallback(
     (node: HTMLDivElement | null) => {
       const effectiveRoot =
@@ -163,7 +188,6 @@ export default function GalleryUploader() {
     [design, createObserver]
   );
 
-  // Sentinel callback ref — unobserve old, observe new
   const setSentinelRef = useCallback((node: HTMLDivElement | null) => {
     if (sentinelElRef.current && ioRef.current) {
       ioRef.current.unobserve(sentinelElRef.current);
@@ -174,10 +198,9 @@ export default function GalleryUploader() {
     }
   }, []);
 
-  // Scroll fallback for modern: in case IO misses, detect near-bottom by scroll
+  // Scroll fallback for modern
   useEffect(() => {
     if (design !== "modern") return;
-
     let raf = 0;
     const el = rootElRef.current;
     if (!el) return;
@@ -186,7 +209,7 @@ export default function GalleryUploader() {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         if (!hasMore || fetchingRef.current) return;
-        const pad = 400; // prefetch before bottom
+        const pad = 400;
         const nearBottom =
           el.scrollTop + el.clientHeight >= el.scrollHeight - pad;
         if (!ioRef.current && nearBottom) fetchMore();
@@ -200,7 +223,6 @@ export default function GalleryUploader() {
     };
   }, [design, hasMore, fetchMore]);
 
-  // Reset observer when toggling design so it never “sticks”
   useEffect(() => {
     createObserver(
       design === "modern" ? (rootElRef.current as Element | null) : null
@@ -212,7 +234,7 @@ export default function GalleryUploader() {
 
   // Initial load
   useEffect(() => {
-    if (didInitRef.current) return; // <-- guard the first render
+    if (didInitRef.current) return;
     didInitRef.current = true;
     fetchMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -341,7 +363,8 @@ export default function GalleryUploader() {
       {activeTab === "gallery" ? (
         <>
           {design === "modern" ? (
-            // Scroll root; the sentinel is inside it
+            // Modern: if you want the same click behavior here,
+            // pass an onItemClick prop and implement it inside ModernGallery.
             <div
               ref={setRootRef}
               className="w-full h-[calc(100vh-8rem)] overflow-auto"
@@ -351,8 +374,10 @@ export default function GalleryUploader() {
                 loading={loading}
                 hasMore={hasMore}
                 lastItemRef={noopLastItemRef}
+                // NEW (optional): implement in ModernGallery
+                // onItemClick={handleItemClick as any}
+                // flippedIds={flipped} // optional if you render links there
               />
-              {/* Sentinel lives inside the scrolling container */}
               <div ref={setSentinelRef} className="h-1" />
               {loading && filteredItems.length === 0 && (
                 <div className="p-6">
@@ -370,21 +395,65 @@ export default function GalleryUploader() {
               }`}
             >
               {filteredItems.length > 0
-                ? filteredItems.map((item, index) => (
-                    <div key={item.id} className="w-full">
-                      <AnimatedCard delay={(index % 2) * 0.1}>
-                        <GalleryCard
-                          id={item.id}
-                          title={item.title}
-                          imageUrl={item.imageUrl}
-                          links={item.links}
-                          isFavorite={item.is_favorite}
-                          index={index}
-                          showDevTitle={false}
-                        />
-                      </AnimatedCard>
-                    </div>
-                  ))
+                ? filteredItems.map((item, index) => {
+                    const isFlipped = flipped.has(item.id);
+                    return (
+                      <div key={item.id} className="w-full">
+                        <AnimatedCard delay={(index % 2) * 0.1}>
+                          {/* CLICK TARGET */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleItemClick(item)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                handleItemClick(item);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <GalleryCard
+                              id={item.id}
+                              title={item.title}
+                              imageUrl={item.imageUrl}
+                              links={item.links}
+                              isFavorite={item.is_favorite}
+                              index={index}
+                              showDevTitle={false}
+                            />
+                          </div>
+
+                          {/* FLIP PANEL: shows all links when multiple */}
+                          {isFlipped && item.links.length > 1 && (
+                            <div className="mt-2 rounded-xl border p-3 text-sm bg-muted/30">
+                              <div className="mb-2 font-medium">Links</div>
+                              <ul className="space-y-1">
+                                {item.links.map((l, i) => (
+                                  <li key={`${item.id}-link-${i}`}>
+                                    <a
+                                      href={l.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline hover:no-underline break-all"
+                                      onClick={(e) => e.stopPropagation()} // don't bubble to card
+                                    >
+                                      {l.url}
+                                    </a>
+                                    {l.password && (
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                        (password: {l.password})
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </AnimatedCard>
+                      </div>
+                    );
+                  })
                 : loading &&
                   Array.from({ length: view === "grid" ? 6 : 3 }).map(
                     (_, i) => <GalleryCardSkeleton key={`init-skeleton-${i}`} />
@@ -396,7 +465,6 @@ export default function GalleryUploader() {
                   <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
                 ))}
 
-              {/* Sentinel — observed with root=null (viewport) */}
               <div ref={setSentinelRef} className="h-1" />
             </div>
           )}
