@@ -1,12 +1,34 @@
-// app/api/gallery/route.ts (GET) — with links fetching
+// app/api/gallery/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const BUCKET = "gallery-encrypted";
 const DEFAULT_LIMIT = 20;
+
+interface FileRow {
+  id: string;
+  legacy_id: string | null;
+  title: string | null;
+  file_path: string;
+  is_favorite: boolean | null;
+  created_at: string; // ISO timestamp
+}
+
+interface LinkRow {
+  item_id: string;
+  url: string;
+  password: string | null;
+  label?: string | null;
+}
+
+type SupabaseStorageError = {
+  message: string;
+  statusCode?: string | number;
+};
 
 function encodeCursor(
   c: { created_at: string; id: string } | null
@@ -34,9 +56,9 @@ export async function GET(req: NextRequest) {
     100
   );
   const cursorParam = searchParams.get("cursor");
-  const cursor = decodeCursor(cursorParam); // { created_at, id } | null
+  const cursor = decodeCursor(cursorParam);
 
-  // 1) Files page: newest first, stable tie-breaker
+  // 1) Page of files: newest first, stable tiebreaker
   let q = supabase
     .from("gallery_files")
     .select("id, legacy_id, title, file_path, is_favorite, created_at")
@@ -45,54 +67,52 @@ export async function GET(req: NextRequest) {
     .limit(limit);
 
   if (cursor) {
-    const c = cursor.created_at; // raw ISO, no encodeURIComponent
+    const c = cursor.created_at; // RAW ISO string (no encodeURIComponent)
     const i = cursor.id;
-    // Strictly older: (created_at < c) OR (created_at = c AND id < i)
+    // Strictly older than boundary:
+    // (created_at < c) OR (created_at = c AND id < i)
     q = q.or(`and(created_at.lt.${c}),and(created_at.eq.${c},id.lt.${i})`);
   }
 
-  const { data: files, error } = await q;
-  if (error) {
+  const { data: files, error: filesErr } = await q.returns<FileRow[]>();
+  if (filesErr) {
     return NextResponse.json(
-      { success: false, data: [], error: error.message },
+      { success: false, data: [], error: (filesErr as PostgrestError).message },
       { status: 500 }
     );
   }
-  if (!files?.length) {
+  if (!files || files.length === 0) {
     return NextResponse.json({ success: true, data: [], nextCursor: null });
   }
 
-  // 2) Fetch links for these files using legacy_id (batch-safe)
-  const legacyIds: string[] = files
-    .map((f: any) => f.legacy_id)
-    .filter((v: any): v is string => Boolean(v));
+  // 2) Batch fetch links for these files via legacy_id
+  const legacyIds = files
+    .map((f) => f.legacy_id)
+    .filter((v): v is string => Boolean(v));
 
-  type LinkRow = {
-    item_id: string;
-    url: string;
-    password: string | null;
-    label?: string | null;
-  };
   const linksByLegacyId: Record<string, LinkRow[]> = {};
-
   if (legacyIds.length) {
-    // Supabase .in() supports large lists but we’ll be nice and chunk (e.g., 1000 ids)
     const chunkSize = 1000;
     for (let i = 0; i < legacyIds.length; i += chunkSize) {
       const chunk = legacyIds.slice(i, i + chunkSize);
       const { data: linksChunk, error: linksErr } = await supabase
         .from("gallery_links")
         .select("item_id, url, password, label")
-        .in("item_id", chunk);
+        .in("item_id", chunk)
+        .returns<LinkRow[]>();
 
       if (linksErr) {
         return NextResponse.json(
-          { success: false, data: [], error: linksErr.message },
+          {
+            success: false,
+            data: [],
+            error: (linksErr as PostgrestError).message,
+          },
           { status: 500 }
         );
       }
 
-      for (const l of linksChunk || []) {
+      for (const l of linksChunk ?? []) {
         (linksByLegacyId[l.item_id] ||= []).push(l);
       }
     }
@@ -100,14 +120,15 @@ export async function GET(req: NextRequest) {
 
   // 3) Sign storage URLs and attach links
   const signed = await Promise.all(
-    files.map(async (row: any) => {
+    files.map(async (row) => {
       const { data: s, error: signErr } = await supabase.storage
         .from(BUCKET)
         .createSignedUrl(row.file_path, 60 * 5);
 
       if (signErr) {
-        // Log and continue; client can render a placeholder when encrypted_url is null
-        console.error("sign url error:", row.file_path, signErr.message);
+        const e = signErr as SupabaseStorageError;
+        // Log and continue (client can handle null URL)
+        console.error("sign url error:", row.file_path, e.message);
       }
 
       return {
@@ -116,13 +137,13 @@ export async function GET(req: NextRequest) {
         is_favorite: row.is_favorite ?? false,
         created_at: row.created_at,
         encrypted_url: s?.signedUrl ?? null,
-        // NOTE: url/password are still encrypted in DB; client will decrypt
-        links: linksByLegacyId[row.legacy_id] || [],
+        // NOTE: url/password are still encrypted; client decrypts them
+        links: linksByLegacyId[row.legacy_id ?? ""] ?? [],
       };
     })
   );
 
-  // 4) Next cursor = last row of this page (created_at,id)
+  // 4) Next cursor = last row of this page (created_at, id)
   const last = files[files.length - 1];
   const nextCursor = encodeCursor({ created_at: last.created_at, id: last.id });
 
