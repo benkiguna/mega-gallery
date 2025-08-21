@@ -58,13 +58,8 @@ export default function GalleryUploader() {
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   // Use Zustand store for UI state
-  const {
-    designMode,
-    viewMode, 
-    filterMode,
-    searchQuery,
-    selectedTagIds
-  } = useGalleryStore();
+  const { designMode, viewMode, filterMode, searchQuery, selectedTagIds } =
+    useGalleryStore();
 
   // NEW: which cards are “flipped” to show the links panel
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -271,9 +266,11 @@ export default function GalleryUploader() {
     const matchesSearch = item.title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const matchesFavorite = filterMode === "favorites" ? item.is_favorite : true;
-    const matchesTags = selectedTagIds.length === 0 || 
-      selectedTagIds.some(tagId => item.tags.some(tag => tag.id === tagId));
+    const matchesFavorite =
+      filterMode === "favorites" ? item.is_favorite : true;
+    const matchesTags =
+      selectedTagIds.length === 0 ||
+      selectedTagIds.some((tagId) => item.tags.some((tag) => tag.id === tagId));
     return matchesSearch && matchesFavorite && matchesTags;
   });
 
@@ -288,7 +285,7 @@ export default function GalleryUploader() {
       {/* Main Gallery Content with Smooth Transitions */}
       <motion.div
         layout
-        className={`w-full ${designMode === "modern" ? "pt-24" : "pt-16"}`}
+        className={`w-full`}
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
       >
         <AnimatePresence mode="wait">
@@ -397,9 +394,9 @@ export default function GalleryUploader() {
 
               {loading &&
                 filteredItems.length > 0 &&
-                Array.from({ length: viewMode === "grid" ? 4 : 2 }).map((_, i) => (
-                  <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
-                ))}
+                Array.from({ length: viewMode === "grid" ? 4 : 2 }).map(
+                  (_, i) => <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
+                )}
 
               <div ref={setSentinelRef} className="h-1" />
             </motion.div>

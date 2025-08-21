@@ -332,7 +332,7 @@ export default function ModernGallery({
       {/* Main Gallery Content */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Top Row - Active Image with Background Cover Art */}
-        <div className="flex-1 relative rounded-lg overflow-hidden border dark:border-gray-700 mb-4 mx-4">
+        <div className="flex-1 relative rounded-lg overflow-hidden border dark:border-gray-700 mb-4">
           {/* Background Image as Cover Art */}
           {activeItem.imageUrl && (
             <div
