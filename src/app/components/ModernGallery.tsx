@@ -45,9 +45,15 @@ export default function ModernGallery({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showLinks, setShowLinks] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const thumbnailRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
   // console.log('ModernGallery rendered with:', { items: items.length, loading, hasMore });
+
+  // Handle hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-center the active image when items change
   useEffect(() => {
@@ -141,10 +147,13 @@ export default function ModernGallery({
   };
 
   const handleImageClick = () => {
-    if (activeItem.links.length === 1) {
+    const currentItem = items[activeIndex];
+    if (!currentItem) return;
+    
+    if (currentItem.links.length === 1) {
       // Single link: navigate directly
-      window.open(activeItem.links[0].url, "_blank");
-    } else if (activeItem.links.length > 1) {
+      window.open(currentItem.links[0].url, "_blank");
+    } else if (currentItem.links.length > 1) {
       // Multiple links: toggle links panel
       setShowLinks(!showLinks);
     }
@@ -214,7 +223,12 @@ export default function ModernGallery({
       const scrollPosition = scrollLeft + clientWidth;
       const scrollThreshold = scrollWidth - 100; // 100px threshold
 
-      if (scrollPosition >= scrollThreshold && hasMore && !loading && !fetchingRef.current) {
+      if (
+        scrollPosition >= scrollThreshold &&
+        hasMore &&
+        !loading &&
+        !fetchingRef.current
+      ) {
         fetchingRef.current = true;
         console.log("Infinite scroll triggered:", {
           scrollLeft,
@@ -259,6 +273,18 @@ export default function ModernGallery({
     }
   }, [loading]);
 
+  // Show loading state during hydration
+  if (!mounted) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <div className="text-lg font-medium mb-2">Loading gallery...</div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto mt-4"></div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && items.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -285,6 +311,18 @@ export default function ModernGallery({
   }
 
   const activeItem = items[activeIndex];
+
+  // Early return if no active item
+  if (!activeItem) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <div className="text-lg font-medium mb-2">Loading...</div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto mt-4"></div>
+        </div>
+      </div>
+    );
+  }
 
   // Get the active item to display
   // console.log('ModernGallery activeItem:', activeItem);
@@ -326,7 +364,7 @@ export default function ModernGallery({
                 <HeartOff className="text-gray-400 w-5 h-5" />
               )}
             </Button>
-            
+
             {/* Tag Button */}
             <Button
               variant="ghost"
@@ -357,9 +395,9 @@ export default function ModernGallery({
           )}
 
           {/* Main Image Overlay - Clickable */}
-          <div 
+          <div
             className={`relative z-10 w-full h-full flex items-center justify-center p-8 ${
-              activeItem.links.length > 0 ? 'cursor-pointer' : ''
+              activeItem.links.length > 0 ? "cursor-pointer" : ""
             }`}
             onClick={handleImageClick}
           >
@@ -368,7 +406,7 @@ export default function ModernGallery({
                 src={activeItem.imageUrl}
                 alt={activeItem.title}
                 className={`max-w-full max-h-full object-contain rounded-lg transition-transform duration-200 ${
-                  activeItem.links.length > 0 ? 'hover:scale-105' : ''
+                  activeItem.links.length > 0 ? "hover:scale-105" : ""
                 }`}
                 style={{
                   filter:
@@ -451,7 +489,6 @@ export default function ModernGallery({
               </motion.div>
             )}
           </AnimatePresence>
-
         </div>
 
         {/* Bottom Row - Pivot-based Thumbnail Carousel */}
@@ -506,13 +543,15 @@ export default function ModernGallery({
       </div>
 
       {/* Tag Modal */}
-      <TagModal
-        isOpen={showTagModal}
-        onClose={() => setShowTagModal(false)}
-        imageId={activeItem.id}
-        existingTags={activeItem.tags}
-        onTagsUpdated={handleTagsUpdated}
-      />
+      {activeItem && (
+        <TagModal
+          isOpen={showTagModal}
+          onClose={() => setShowTagModal(false)}
+          imageId={activeItem.id}
+          existingTags={activeItem.tags}
+          onTagsUpdated={handleTagsUpdated}
+        />
+      )}
     </div>
   );
 }

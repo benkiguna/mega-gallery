@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { useGalleryStore } from '@/app/stores/galleryStore';
-import { 
-  ChevronDownIcon, 
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { useGalleryStore } from "@/app/stores/galleryStore";
+import {
+  ChevronDownIcon,
   MagnifyingGlassIcon,
   Squares2X2Icon,
   ListBulletIcon,
   AdjustmentsHorizontalIcon,
   EyeIcon,
-  EyeSlashIcon
-} from '@heroicons/react/24/outline';
-import { SearchSection } from './SearchSection';
-import { ViewControls } from './ViewControls';
-import { QuickActions } from './QuickActions';
-import { MobileControls } from './MobileControls';
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
+import { SearchSection } from "./SearchSection";
+import { ViewControls } from "./ViewControls";
+import { QuickActions } from "./QuickActions";
+import { MobileControls } from "./MobileControls";
 
 export default function GalleryCommandCenter() {
   const {
@@ -24,7 +24,7 @@ export default function GalleryCommandCenter() {
     designMode,
     enableAnimations,
     setShowControls,
-    setCommandCenterVisible
+    setCommandCenterVisible,
   } = useGalleryStore();
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -36,16 +36,16 @@ export default function GalleryCommandCenter() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   // Handle scroll-based auto-hide
   useEffect(() => {
     let ticking = false;
-    
+
     const updateScrollY = () => {
       setScrollY(window.scrollY);
       ticking = false;
@@ -58,8 +58,8 @@ export default function GalleryCommandCenter() {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Auto-hide command center when scrolling down
@@ -68,49 +68,49 @@ export default function GalleryCommandCenter() {
   if (!isCommandCenterVisible) return null;
 
   const containerVariants = {
-    hidden: { 
-      opacity: 0, 
+    hidden: {
+      opacity: 0,
       y: -20,
-      scale: 0.98
+      scale: 0.98,
     },
-    visible: { 
-      opacity: 1, 
+    visible: {
+      opacity: 1,
       y: 0,
       scale: 1,
       transition: {
         type: "spring",
         stiffness: 400,
         damping: 30,
-        mass: 0.8
-      }
+        mass: 0.8,
+      },
     },
     exit: {
       opacity: 0,
       y: -20,
       scale: 0.98,
       transition: {
-        duration: 0.2
-      }
-    }
+        duration: 0.2,
+      },
+    },
   };
 
   const expandedVariants = {
-    collapsed: { 
+    collapsed: {
       height: "auto",
       transition: {
         type: "spring",
         stiffness: 400,
-        damping: 40
-      }
+        damping: 40,
+      },
     },
-    expanded: { 
+    expanded: {
       height: "auto",
       transition: {
         type: "spring",
         stiffness: 400,
-        damping: 40
-      }
-    }
+        damping: 40,
+      },
+    },
   };
 
   if (isMobile) {
@@ -127,12 +127,9 @@ export default function GalleryCommandCenter() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4"
+            className="fixed top-20 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4"
           >
-            <motion.div
-              layout
-              className="relative"
-            >
+            <motion.div layout className="relative">
               {/* Main Command Center */}
               <motion.div
                 layout
@@ -140,19 +137,19 @@ export default function GalleryCommandCenter() {
                 animate={isExpanded ? "expanded" : "collapsed"}
                 className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 rounded-2xl shadow-xl overflow-hidden"
                 style={{
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
                 }}
               >
                 {/* Compact Header */}
-                <motion.div 
+                <motion.div
                   layout
                   className="flex items-center justify-between p-4"
                 >
                   <div className="flex items-center gap-3">
                     {/* Quick View Toggle */}
                     <ViewControls compact />
-                    
+
                     {/* Search Preview */}
                     <SearchSection compact />
                   </div>
@@ -160,7 +157,7 @@ export default function GalleryCommandCenter() {
                   <div className="flex items-center gap-2">
                     {/* Quick Actions */}
                     <QuickActions />
-                    
+
                     {/* Expand Toggle */}
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -199,14 +196,14 @@ export default function GalleryCommandCenter() {
                       transition={{
                         type: "spring",
                         stiffness: 400,
-                        damping: 40
+                        damping: 40,
                       }}
                       className="border-t border-gray-200/50 dark:border-gray-700/50"
                     >
                       <div className="p-6 space-y-6">
                         {/* Full Search Section */}
                         <SearchSection />
-                        
+
                         {/* Full View Controls */}
                         <ViewControls />
                       </div>
