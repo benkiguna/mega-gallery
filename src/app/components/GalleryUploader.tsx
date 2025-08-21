@@ -9,6 +9,13 @@ import { decryptText, fetchAndDecrypt } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GalleryCardSkeleton from "./GalleryCardSkeleton";
+import TagFilterBar from "./TagFilterBar";
+
+type TagItem = {
+  id: string;
+  name: string;
+  color: string;
+};
 
 type GalleryItem = {
   id: string;
@@ -17,6 +24,7 @@ type GalleryItem = {
   is_favorite: boolean;
   isFavorite: boolean;
   links: Array<{ url: string; password?: string }>;
+  tags: TagItem[];
 };
 
 type ApiItem = {
@@ -25,6 +33,7 @@ type ApiItem = {
   encrypted_url?: string | null;
   is_favorite?: boolean;
   links?: Array<{ url: string; password?: string }>;
+  tags?: TagItem[];
 };
 
 // ----- decrypt cache (module scope) -----
@@ -54,6 +63,7 @@ export default function GalleryUploader() {
   const [filter, setFilter] = useState<"all" | "favorites">("all");
   const [design, setDesign] = useState<"classic" | "modern">("classic");
   const [showControls, setShowControls] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // NEW: which cards are “flipped” to show the links panel
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -75,6 +85,9 @@ export default function GalleryUploader() {
       const url = new URL("/api/gallery", window.location.origin);
       url.searchParams.set("limit", String(limit));
       if (cursor) url.searchParams.set("cursor", cursor);
+      if (selectedTagIds.length > 0) {
+        url.searchParams.set("tags", selectedTagIds.join(","));
+      }
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -102,6 +115,7 @@ export default function GalleryUploader() {
           );
 
           const fav = item.is_favorite ?? false;
+          const tags = item.tags ?? [];
           return {
             id: item.id,
             title,
@@ -109,6 +123,7 @@ export default function GalleryUploader() {
             is_favorite: fav,
             isFavorite: fav,
             links,
+            tags,
           };
         })
       );
@@ -129,7 +144,28 @@ export default function GalleryUploader() {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [cursor, limit, hasMore]);
+  }, [cursor, limit, hasMore, selectedTagIds]);
+
+  // Handle tag filter changes
+  const handleTagsChange = useCallback((tagIds: string[]) => {
+    setSelectedTagIds(tagIds);
+    // Reset pagination when tags change
+    setItems([]);
+    setCursor(null);
+    setHasMore(true);
+    fetchingRef.current = false;
+  }, []);
+
+  // Trigger fetch when tag filters change
+  useEffect(() => {
+    if (!didInitRef.current) return; // Skip initial fetch
+    // Reset and fetch new data when tags change
+    setItems([]);
+    setCursor(null);
+    setHasMore(true);
+    fetchingRef.current = false;
+    // fetchMore will be called by the intersection observer or scroll handler
+  }, [selectedTagIds]);
 
   // NEW: click behavior for a card
   const handleItemClick = useCallback((item: GalleryItem) => {
@@ -243,7 +279,9 @@ export default function GalleryUploader() {
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
     const matchesFavorite = filter === "favorites" ? item.is_favorite : true;
-    return matchesSearch && matchesFavorite;
+    const matchesTags = selectedTagIds.length === 0 || 
+      selectedTagIds.some(tagId => item.tags.some(tag => tag.id === tagId));
+    return matchesSearch && matchesFavorite && matchesTags;
   });
 
   // Keep ModernGallery prop compat if it expects lastItemRef
@@ -293,15 +331,17 @@ export default function GalleryUploader() {
               className="px-2 pb-4"
             >
               
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <Input
-                    type="text"
-                    placeholder="Search by title..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full"
-                  />
-                  <div className="flex gap-2 items-center justify-end">
+                <div className="space-y-4">
+                  {/* Search Input */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <Input
+                      type="text"
+                      placeholder="Search by title..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full"
+                    />
+                    <div className="flex gap-2 items-center justify-end">
                     {design === "classic" && (
                       <>
                         <Button
@@ -333,7 +373,14 @@ export default function GalleryUploader() {
                         ? "Showing Favorites"
                         : "Show Favorites"}
                     </Button>
+                    </div>
                   </div>
+                  
+                  {/* Tag Filter Bar */}
+                  <TagFilterBar
+                    selectedTagIds={selectedTagIds}
+                    onTagsChange={handleTagsChange}
+                  />
                 </div>
             </motion.div>
           )}

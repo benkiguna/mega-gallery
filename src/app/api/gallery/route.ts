@@ -57,6 +57,10 @@ export async function GET(req: NextRequest) {
   );
   const cursorParam = searchParams.get("cursor");
   const cursor = decodeCursor(cursorParam);
+  
+  // Get tag filter parameter
+  const tagFilters = searchParams.get("tags");
+  const tagIds = tagFilters ? tagFilters.split(",").filter(Boolean) : [];
 
   // 1) Page of files: newest first, stable tiebreaker
   let q = supabase
@@ -65,6 +69,23 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);
+
+  // Apply tag filtering if tags are specified
+  if (tagIds.length > 0) {
+    // Get image IDs that have any of the specified tags
+    const { data: imageIds } = await supabase
+      .from("image_tags")
+      .select("image_id")
+      .in("tag_id", tagIds);
+    
+    const filteredImageIds = imageIds?.map(row => row.image_id) || [];
+    if (filteredImageIds.length > 0) {
+      q = q.in("id", filteredImageIds);
+    } else {
+      // No images found with these tags, return empty result
+      return NextResponse.json({ success: true, data: [], nextCursor: null });
+    }
+  }
 
   if (cursor) {
     const c = cursor.created_at; // RAW ISO string (no encodeURIComponent)
@@ -118,7 +139,39 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 3) Sign storage URLs and attach links
+  // 3) Batch fetch tags for these files
+  const fileIds = files.map((f) => f.id);
+  const tagsByFileId: Record<string, { id: string; name: string; color: string }[]> = {};
+  
+  if (fileIds.length) {
+    const { data: imageTags, error: tagsErr } = await supabase
+      .from("image_tags")
+      .select(`
+        image_id,
+        tags(id, name, color)
+      `)
+      .in("image_id", fileIds);
+
+    if (tagsErr) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: [],
+          error: (tagsErr as PostgrestError).message,
+        },
+        { status: 500 }
+      );
+    }
+
+    for (const imageTag of imageTags ?? []) {
+      if (imageTag.tags) {
+        const tag = imageTag.tags as unknown as { id: string; name: string; color: string };
+        (tagsByFileId[imageTag.image_id] ||= []).push(tag);
+      }
+    }
+  }
+
+  // 4) Sign storage URLs and attach links and tags
   const signed = await Promise.all(
     files.map(async (row) => {
       const { data: s, error: signErr } = await supabase.storage
@@ -139,11 +192,12 @@ export async function GET(req: NextRequest) {
         encrypted_url: s?.signedUrl ?? null,
         // NOTE: url/password are still encrypted; client decrypts them
         links: linksByLegacyId[row.legacy_id ?? ""] ?? [],
+        tags: tagsByFileId[row.id] ?? [],
       };
     })
   );
 
-  // 4) Next cursor = last row of this page (created_at, id)
+  // 5) Next cursor = last row of this page (created_at, id)
   const last = files[files.length - 1];
   const nextCursor = encodeCursor({ created_at: last.created_at, id: last.id });
 

@@ -3,11 +3,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Copy, Heart, HeartOff } from "lucide-react";
+import { Copy, Heart, HeartOff, Tag } from "lucide-react";
+import TagModal from "./TagModal";
 
 type LinkItem = {
   url: string;
   password?: string;
+};
+
+type TagItem = {
+  id: string;
+  name: string;
+  color: string;
 };
 
 type GalleryItem = {
@@ -16,6 +23,7 @@ type GalleryItem = {
   imageUrl?: string;
   links: LinkItem[];
   isFavorite: boolean;
+  tags: TagItem[];
 };
 
 type ModernGalleryProps = {
@@ -36,6 +44,7 @@ export default function ModernGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showLinks, setShowLinks] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
   const thumbnailRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
   // console.log('ModernGallery rendered with:', { items: items.length, loading, hasMore });
@@ -123,6 +132,23 @@ export default function ModernGallery({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ itemId, isFavorite: newFavorite }),
     });
+  };
+
+  const handleTagsUpdated = (updatedTags: TagItem[]) => {
+    // This would typically update the parent state
+    // For now, we'll just update the local item (note: this is a simplified approach)
+    console.log("Tags updated:", updatedTags);
+  };
+
+  const handleImageClick = () => {
+    if (activeItem.links.length === 1) {
+      // Single link: navigate directly
+      window.open(activeItem.links[0].url, "_blank");
+    } else if (activeItem.links.length > 1) {
+      // Multiple links: toggle links panel
+      setShowLinks(!showLinks);
+    }
+    // No links: do nothing
   };
 
   // Pivot-based scroll handling - optimized for performance
@@ -283,29 +309,67 @@ export default function ModernGallery({
           {/* Dark Overlay for Better Text Readability */}
           <div className="absolute inset-0 bg-black/40" />
 
-          {/* Favorite Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) =>
-              toggleFavorite(e, activeItem.id, activeItem.isFavorite)
-            }
-            className="absolute top-4 left-4 z-20 bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
-          >
-            {activeItem.isFavorite ? (
-              <Heart className="text-red-500 fill-red-500 w-5 h-5" />
-            ) : (
-              <HeartOff className="text-gray-400 w-5 h-5" />
-            )}
-          </Button>
+          {/* Action Buttons */}
+          <div className="absolute top-4 left-4 z-20 flex gap-2">
+            {/* Favorite Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) =>
+                toggleFavorite(e, activeItem.id, activeItem.isFavorite)
+              }
+              className="bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
+            >
+              {activeItem.isFavorite ? (
+                <Heart className="text-red-500 fill-red-500 w-5 h-5" />
+              ) : (
+                <HeartOff className="text-gray-400 w-5 h-5" />
+              )}
+            </Button>
+            
+            {/* Tag Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTagModal(true);
+              }}
+              className="bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black backdrop-blur-sm"
+            >
+              <Tag className="text-blue-500 w-5 h-5" />
+            </Button>
+          </div>
 
-          {/* Main Image Overlay */}
-          <div className="relative z-10 w-full h-full flex items-center justify-center p-8">
+          {/* Tags Display - Top Right */}
+          {activeItem.tags.length > 0 && (
+            <div className="absolute top-4 right-4 z-20 flex flex-wrap gap-1 max-w-64">
+              {activeItem.tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white backdrop-blur-sm"
+                  style={{ backgroundColor: tag.color + "90" }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Main Image Overlay - Clickable */}
+          <div 
+            className={`relative z-10 w-full h-full flex items-center justify-center p-8 ${
+              activeItem.links.length > 0 ? 'cursor-pointer' : ''
+            }`}
+            onClick={handleImageClick}
+          >
             {activeItem.imageUrl ? (
               <img
                 src={activeItem.imageUrl}
                 alt={activeItem.title}
-                className="max-w-full max-h-full object-contain rounded-lg"
+                className={`max-w-full max-h-full object-contain rounded-lg transition-transform duration-200 ${
+                  activeItem.links.length > 0 ? 'hover:scale-105' : ''
+                }`}
                 style={{
                   filter:
                     "drop-shadow(0 0 30px rgba(255,255,255,0.3)) drop-shadow(0 0 60px rgba(255,255,255,0.2))",
@@ -323,56 +387,34 @@ export default function ModernGallery({
             )}
           </div>
 
-          {/* Image Info and Actions */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="text-white mb-3">
-                <h3 className="text-xl font-semibold mb-1">
-                  {activeItem.title}
-                </h3>
-                <p className="text-sm text-gray-300">
-                  {activeIndex + 1} of {items.length}
-                </p>
-              </div>
-
-              {activeItem.links.length === 1 ? (
-                <Button
-                  onClick={() => window.open(activeItem.links[0].url, "_blank")}
-                  variant="outline"
-                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 px-6"
-                >
-                  View
-                </Button>
-              ) : (
-                activeItem.links.length > 1 && (
-                  <Button
-                    onClick={() => setShowLinks(!showLinks)}
-                    variant="outline"
-                    className="bg-white/20 border-white/30 text-white hover:bg-white/30 px-6"
-                  >
-                    {showLinks ? "Hide Links" : "Show Links"}
-                  </Button>
-                )
-              )}
-            </div>
-
-            {/* Links Panel */}
-            <AnimatePresence>
-              {showLinks && (
+          {/* Links Panel - Centered Overlay */}
+          <AnimatePresence>
+            {showLinks && activeItem.links.length > 1 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                onClick={() => setShowLinks(false)}
+              >
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-4 bg-white/10 backdrop-blur-sm rounded-lg p-4"
+                  initial={{ y: 20 }}
+                  animate={{ y: 0 }}
+                  exit={{ y: 20 }}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="grid gap-3">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                    Available Links
+                  </h3>
+                  <div className="space-y-3">
                     {activeItem.links.map((link, index) => (
                       <div key={index} className="flex items-center gap-3">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(link.url, "_blank")}
-                          className="bg-white/20 border-white/30 text-white hover:bg-white/30 flex-1 justify-start"
+                          className="flex-1 justify-start"
                         >
                           Visit Link {index + 1}
                         </Button>
@@ -381,7 +423,6 @@ export default function ModernGallery({
                             variant="outline"
                             size="sm"
                             onClick={() => handleCopy(link.password!, index)}
-                            className="bg-white/20 border-white/30 text-white hover:bg-white/30"
                           >
                             {copiedIndex === index ? (
                               "Copied!"
@@ -396,10 +437,21 @@ export default function ModernGallery({
                       </div>
                     ))}
                   </div>
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowLinks(false)}
+                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Close
+                    </Button>
+                  </div>
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
 
         {/* Bottom Row - Pivot-based Thumbnail Carousel */}
@@ -452,6 +504,15 @@ export default function ModernGallery({
           </div>
         </div>
       </div>
+
+      {/* Tag Modal */}
+      <TagModal
+        isOpen={showTagModal}
+        onClose={() => setShowTagModal(false)}
+        imageId={activeItem.id}
+        existingTags={activeItem.tags}
+        onTagsUpdated={handleTagsUpdated}
+      />
     </div>
   );
 }
