@@ -6,10 +6,9 @@ import GalleryCard from "./GalleryCard";
 import AnimatedCard from "./AnimatedCard";
 import ModernGallery from "./ModernGallery";
 import { decryptText, fetchAndDecrypt } from "@/lib/crypto-utils";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import GalleryCardSkeleton from "./GalleryCardSkeleton";
-import TagFilterBar from "./TagFilterBar";
+import { GalleryCommandCenter } from "./GalleryCommandCenter";
+import { useGalleryStore } from "@/app/stores/galleryStore";
 
 type TagItem = {
   id: string;
@@ -58,12 +57,14 @@ export default function GalleryUploader() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [view, setView] = useState<"grid" | "list">("grid");
-  const [filter, setFilter] = useState<"all" | "favorites">("all");
-  const [design, setDesign] = useState<"classic" | "modern">("classic");
-  const [showControls, setShowControls] = useState(false);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Use Zustand store for UI state
+  const {
+    designMode,
+    viewMode, 
+    filterMode,
+    searchQuery,
+    selectedTagIds
+  } = useGalleryStore();
 
   // NEW: which cards are “flipped” to show the links panel
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -146,15 +147,7 @@ export default function GalleryUploader() {
     }
   }, [cursor, limit, hasMore, selectedTagIds]);
 
-  // Handle tag filter changes
-  const handleTagsChange = useCallback((tagIds: string[]) => {
-    setSelectedTagIds(tagIds);
-    // Reset pagination when tags change
-    setItems([]);
-    setCursor(null);
-    setHasMore(true);
-    fetchingRef.current = false;
-  }, []);
+  // Handle tag filter changes - automatically handled by store and effects
 
   // Trigger fetch when tag filters change
   useEffect(() => {
@@ -214,11 +207,11 @@ export default function GalleryUploader() {
   const setRootRef = useCallback(
     (node: HTMLDivElement | null) => {
       const effectiveRoot =
-        design === "modern" ? (node as Element | null) : null;
+        designMode === "modern" ? (node as Element | null) : null;
       rootElRef.current = node;
       createObserver(effectiveRoot);
     },
-    [design, createObserver]
+    [designMode, createObserver]
   );
 
   const setSentinelRef = useCallback((node: HTMLDivElement | null) => {
@@ -233,7 +226,7 @@ export default function GalleryUploader() {
 
   // Scroll fallback for modern
   useEffect(() => {
-    if (design !== "modern") return;
+    if (designMode !== "modern") return;
     let raf = 0;
     const el = rootElRef.current;
     if (!el) return;
@@ -254,16 +247,16 @@ export default function GalleryUploader() {
       if (raf) cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll);
     };
-  }, [design, hasMore, fetchMore]);
+  }, [designMode, hasMore, fetchMore]);
 
   useEffect(() => {
     createObserver(
-      design === "modern" ? (rootElRef.current as Element | null) : null
+      designMode === "modern" ? (rootElRef.current as Element | null) : null
     );
     return () => {
       ioRef.current?.disconnect();
     };
-  }, [design, createObserver]);
+  }, [designMode, createObserver]);
 
   // Initial load
   useEffect(() => {
@@ -278,7 +271,7 @@ export default function GalleryUploader() {
     const matchesSearch = item.title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const matchesFavorite = filter === "favorites" ? item.is_favorite : true;
+    const matchesFavorite = filterMode === "favorites" ? item.is_favorite : true;
     const matchesTags = selectedTagIds.length === 0 || 
       selectedTagIds.some(tagId => item.tags.some(tag => tag.id === tagId));
     return matchesSearch && matchesFavorite && matchesTags;
@@ -288,113 +281,26 @@ export default function GalleryUploader() {
   const noopLastItemRef = useCallback((_node: HTMLDivElement | null) => {}, []);
 
   return (
-    <div className="w-full flex flex-col items-center">
-      <div
-        className={`sticky top-14 z-10 bg-white dark:bg-black border-b dark:border-gray-700 w-full ${
-          design === "modern" ? "max-w-none" : "max-w-4xl"
-        }`}
+    <div className="w-full flex flex-col items-center relative">
+      {/* New Revolutionary Command Center */}
+      <GalleryCommandCenter />
+
+      {/* Main Gallery Content with Smooth Transitions */}
+      <motion.div
+        layout
+        className={`w-full ${designMode === "modern" ? "pt-24" : "pt-16"}`}
+        transition={{ type: "spring", stiffness: 400, damping: 30 }}
       >
-        {/* Controls */}
-        <div className="flex items-center justify-between p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowControls((s) => !s)}
-            className="text-sm"
-          >
-            {showControls ? "Hide Controls" : "Show Controls"}
-          </Button>
-          <div className="flex gap-2 items-center">
-            <Button
-              variant={design === "classic" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setDesign("classic")}
-            >
-              Classic
-            </Button>
-            <Button
-              variant={design === "modern" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setDesign("modern")}
-            >
-              Modern
-            </Button>
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {showControls && (
+        <AnimatePresence mode="wait">
+          {designMode === "modern" ? (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-2 pb-4"
-            >
-              
-                <div className="space-y-4">
-                  {/* Search Input */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <Input
-                      type="text"
-                      placeholder="Search by title..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full"
-                    />
-                    <div className="flex gap-2 items-center justify-end">
-                    {design === "classic" && (
-                      <>
-                        <Button
-                          variant={view === "grid" ? "outline" : "default"}
-                          size="sm"
-                          onClick={() => setView("grid")}
-                        >
-                          Grid
-                        </Button>
-                        <Button
-                          variant={view === "list" ? "outline" : "default"}
-                          size="sm"
-                          onClick={() => setView("list")}
-                        >
-                          List
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant={filter === "favorites" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() =>
-                        setFilter((prev) =>
-                          prev === "favorites" ? "all" : "favorites"
-                        )
-                      }
-                    >
-                      {filter === "favorites"
-                        ? "Showing Favorites"
-                        : "Show Favorites"}
-                    </Button>
-                    </div>
-                  </div>
-                  
-                  {/* Tag Filter Bar */}
-                  <TagFilterBar
-                    selectedTagIds={selectedTagIds}
-                    onTagsChange={handleTagsChange}
-                  />
-                </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Main */}
-      <>
-          {design === "modern" ? (
-            // Modern: if you want the same click behavior here,
-            // pass an onItemClick prop and implement it inside ModernGallery.
-            <div
+              key="modern"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.3 }}
               ref={setRootRef}
-              className="w-full h-[calc(100vh-8rem)] overflow-auto"
+              className="w-full h-[calc(100vh-12rem)] overflow-auto"
             >
               <ModernGallery
                 items={filteredItems}
@@ -411,12 +317,17 @@ export default function GalleryUploader() {
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
           ) : (
-            <div
+            <motion.div
+              key="classic"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.3 }}
               ref={setRootRef}
               className={`grid gap-4 w-full max-w-4xl px-2 mt-6 ${
-                view === "grid" ? "grid-cols-2" : "grid-cols-1"
+                viewMode === "grid" ? "grid-cols-2" : "grid-cols-1"
               }`}
             >
               {filteredItems.length > 0
@@ -480,22 +391,23 @@ export default function GalleryUploader() {
                     );
                   })
                 : loading &&
-                  Array.from({ length: view === "grid" ? 6 : 3 }).map(
+                  Array.from({ length: viewMode === "grid" ? 6 : 3 }).map(
                     (_, i) => <GalleryCardSkeleton key={`init-skeleton-${i}`} />
                   )}
 
               {loading &&
                 filteredItems.length > 0 &&
-                Array.from({ length: view === "grid" ? 4 : 2 }).map((_, i) => (
+                Array.from({ length: viewMode === "grid" ? 4 : 2 }).map((_, i) => (
                   <GalleryCardSkeleton key={`scroll-skeleton-${i}`} />
                 ))}
 
               <div ref={setSentinelRef} className="h-1" />
-            </div>
+            </motion.div>
           )}
-      </>
+        </AnimatePresence>
+      </motion.div>
 
-      {loading && filteredItems.length === 0 && design !== "modern" && (
+      {loading && filteredItems.length === 0 && designMode !== "modern" && (
         <div className="py-12 text-sm text-muted-foreground text-center">
           Loading gallery...
         </div>
