@@ -23,6 +23,7 @@ type ModernGalleryProps = {
   loading: boolean;
   hasMore: boolean;
   lastItemRef: (node: HTMLDivElement) => void;
+  onLoadMore?: () => void;
 };
 
 export default function ModernGallery({
@@ -30,11 +31,13 @@ export default function ModernGallery({
   loading,
   hasMore,
   lastItemRef,
+  onLoadMore,
 }: ModernGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showLinks, setShowLinks] = useState(false);
-  const thumbnailRef = useRef<HTMLDivElement>(null); // Initialize ModernGallery component
+  const thumbnailRef = useRef<HTMLDivElement>(null);
+  const fetchingRef = useRef(false);
   // console.log('ModernGallery rendered with:', { items: items.length, loading, hasMore });
 
   // Auto-center the active image when items change
@@ -185,7 +188,8 @@ export default function ModernGallery({
       const scrollPosition = scrollLeft + clientWidth;
       const scrollThreshold = scrollWidth - 100; // 100px threshold
 
-      if (scrollPosition >= scrollThreshold && hasMore && !loading) {
+      if (scrollPosition >= scrollThreshold && hasMore && !loading && !fetchingRef.current) {
+        fetchingRef.current = true;
         console.log("Infinite scroll triggered:", {
           scrollLeft,
           scrollWidth,
@@ -194,8 +198,10 @@ export default function ModernGallery({
           scrollThreshold,
         });
         // Trigger infinite scroll
-        if (lastItemRef) {
-          // Create a dummy element to trigger the intersection observer
+        if (onLoadMore) {
+          onLoadMore();
+        } else if (lastItemRef) {
+          // Fallback to old method
           const dummyElement = document.createElement("div");
           lastItemRef(dummyElement);
         }
@@ -218,7 +224,14 @@ export default function ModernGallery({
       container.removeEventListener("scroll", handleScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [handleThumbnailScroll, hasMore, loading, lastItemRef]);
+  }, [handleThumbnailScroll, hasMore, loading, lastItemRef, onLoadMore]);
+
+  // Reset fetchingRef when loading completes
+  useEffect(() => {
+    if (!loading) {
+      fetchingRef.current = false;
+    }
+  }, [loading]);
 
   if (loading && items.length === 0) {
     return (

@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import GalleryCard from "./GalleryCard";
 import AnimatedCard from "./AnimatedCard";
 import ModernGallery from "./ModernGallery";
-import LinksManager from "./LinksManager";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { decryptText, fetchAndDecrypt } from "@/lib/crypto-utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -56,7 +54,6 @@ export default function GalleryUploader() {
   const [filter, setFilter] = useState<"all" | "favorites">("all");
   const [design, setDesign] = useState<"classic" | "modern">("classic");
   const [showControls, setShowControls] = useState(false);
-  const [activeTab, setActiveTab] = useState<"gallery" | "links">("gallery");
 
   // NEW: which cards are “flipped” to show the links panel
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -295,22 +292,7 @@ export default function GalleryUploader() {
               exit={{ opacity: 0, height: 0 }}
               className="px-2 pb-4"
             >
-              <div className="mb-4">
-                <Tabs
-                  value={activeTab}
-                  onValueChange={(value) =>
-                    setActiveTab(value as "gallery" | "links")
-                  }
-                  className="w-full"
-                >
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="gallery">Gallery</TabsTrigger>
-                    <TabsTrigger value="links">Links</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              {activeTab === "gallery" && (
+              
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Input
                     type="text"
@@ -353,15 +335,13 @@ export default function GalleryUploader() {
                     </Button>
                   </div>
                 </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {/* Main */}
-      {activeTab === "gallery" ? (
-        <>
+      <>
           {design === "modern" ? (
             // Modern: if you want the same click behavior here,
             // pass an onItemClick prop and implement it inside ModernGallery.
@@ -374,9 +354,7 @@ export default function GalleryUploader() {
                 loading={loading}
                 hasMore={hasMore}
                 lastItemRef={noopLastItemRef}
-                // NEW (optional): implement in ModernGallery
-                // onItemClick={handleItemClick as any}
-                // flippedIds={flipped} // optional if you render links there
+                onLoadMore={fetchMore}
               />
               <div ref={setSentinelRef} className="h-1" />
               {loading && filteredItems.length === 0 && (
@@ -468,12 +446,7 @@ export default function GalleryUploader() {
               <div ref={setSentinelRef} className="h-1" />
             </div>
           )}
-        </>
-      ) : (
-        <div className="w-full max-w-4xl px-2 mt-6">
-          <LinksManager />
-        </div>
-      )}
+      </>
 
       {loading && filteredItems.length === 0 && design !== "modern" && (
         <div className="py-12 text-sm text-muted-foreground text-center">
