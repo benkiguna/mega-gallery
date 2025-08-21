@@ -149,7 +149,7 @@ export default function ModernGallery({
   const handleImageClick = () => {
     const currentItem = items[activeIndex];
     if (!currentItem) return;
-    
+
     if (currentItem.links.length === 1) {
       // Single link: navigate directly
       window.open(currentItem.links[0].url, "_blank");
@@ -396,7 +396,7 @@ export default function ModernGallery({
 
           {/* Main Image Overlay - Clickable */}
           <div
-            className={`relative z-10 w-full h-full flex items-center justify-center p-8 ${
+            className={`relative z-10 w-full h-full flex items-center justify-center p-4 ${
               activeItem.links.length > 0 ? "cursor-pointer" : ""
             }`}
             onClick={handleImageClick}
